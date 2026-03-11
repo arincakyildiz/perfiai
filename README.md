@@ -17,6 +17,7 @@ Kullanıcı doğal dil ile parfüm isteği yazar; AI (heuristic veya embedding t
 perfiai/
 ├── backend/                    # Node + Express API
 │   ├── server.js               # /perfumes, /ai-search, /perfumes/:id, /stats
+│   ├── test/api.test.js        # API testleri
 │   └── package.json
 ├── data/
 │   ├── perfumes.json           # 880+ parfüm
@@ -32,6 +33,10 @@ perfiai/
 │   ├── scrape_fragrantica.py
 │   ├── urls.txt
 │   └── requirements.txt
+├── .env.example                # Ortam değişkenleri şablonu
+├── render.yaml                 # Render.com deploy
+├── railway.toml                # Railway deploy
+├── Dockerfile                  # Docker deploy
 └── README.md
 ```
 
@@ -134,6 +139,41 @@ Embedding servisi yoksa veya `USE_ST_EMBEDDING` set değilse backend otomatik **
 
 ---
 
+## ⚙️ Ortam Değişkenleri
+
+`.env.example` dosyasını `.env` olarak kopyalayıp değerleri doldurun:
+
+```bash
+cp .env.example .env
+```
+
+Detaylar için `.env.example` içindeki yorumlara bakın.
+
+---
+
+## 🧪 Testler
+
+```bash
+cd backend
+npm test
+```
+
+Sunucu otomatik başlatılır, 5 endpoint test edilir ve kapatılır.
+
+---
+
+## 🚢 Deploy
+
+| Platform | Dosya | Not |
+|----------|-------|-----|
+| **Render** | `render.yaml` | Repo bağla, otomatik algılanır |
+| **Railway** | `railway.toml` | `railway up` ile deploy |
+| **Docker** | `Dockerfile` | `docker build -t perfiai . && docker run -p 3001:3001 perfiai` |
+
+Embedding servisi (SentenceTransformers) ayrı host gerektirir; Vercel'de çalışmaz.
+
+---
+
 ## 📅 Durum
 
 | Özellik | Durum |
@@ -143,8 +183,8 @@ Embedding servisi yoksa veya `USE_ST_EMBEDDING` set değilse backend otomatik **
 | AI arama (heuristic) | ✅ |
 | AI arama (embedding, ST) | ✅ (lokal Python servisi ile) |
 | TR/EN dil, tags, reason | ✅ |
+| .env.example, deploy config, testler | ✅ |
 | Frontend | Planlı |
-| Deploy (Vercel + backend host) | Planlı |
 
 ---
 

@@ -1,0 +1,25 @@
+# Render.com deploy konfigürasyonu
+# https://render.com - Ücretsiz tier mevcut
+#
+# Kullanım: Repo'yu Render'a bağlayın, bu dosya otomatik algılanır.
+
+services:
+  - type: web
+    name: perfiai-api
+    runtime: node
+    region: frankfurt
+
+    # Proje kökünden çalışır; data/ klasörü dahil
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+
+    envVars:
+      - key: PORT
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+      # Embedding için (opsiyonel - boş bırakırsan heuristic mod kullanılır):
+      # - key: USE_ST_EMBEDDING
+      #   value: "0"
+      # - key: SENTENCE_EMBEDDING_URL
+      #   value: "https://your-embedding-service.onrender.com/embed"

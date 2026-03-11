@@ -36,7 +36,6 @@ Production notu:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import List
 
 from fastapi import FastAPI
@@ -45,13 +44,6 @@ from sentence_transformers import SentenceTransformer
 
 
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-
-
-@dataclass
-class EmbeddingModel:
-  model_name: str
-  model: SentenceTransformer
-
 
 print(f"[embedding_server] Model yükleniyor: {MODEL_NAME}")
 _model = SentenceTransformer(MODEL_NAME)
