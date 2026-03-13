@@ -821,7 +821,6 @@ app.get("/perfumes/:id/similar", (req, res) => {
 
   res.json({ data: scored });
 });
-
 // GET / - API bilgisi
 app.get("/", (req, res) => {
   res.json({
@@ -855,7 +854,6 @@ app.get("/brands", (req, res) => {
   );
   res.json({ brands });
 });
-
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Perfiai API: http://localhost:${PORT}`);
