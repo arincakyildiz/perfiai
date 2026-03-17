@@ -52,17 +52,17 @@ export function BrandsContent({ brands }: BrandsContentProps) {
   return (
     <main className="space-y-8">
       {/* Header */}
-      <div className="relative overflow-hidden rounded-3xl border-2 border-violet-200/40 bg-gradient-to-br from-violet-50 via-white to-pink-50/60 p-10 shadow-xl dark:border-violet-500/20 dark:from-violet-950/40 dark:via-violet-950/20 dark:to-pink-950/30">
+      <div className="relative overflow-hidden rounded-3xl border-2 border-violet-200/40 bg-gradient-to-br from-violet-50 via-white to-pink-50/60 p-6 shadow-xl dark:border-violet-500/20 dark:from-violet-950/40 dark:via-violet-950/20 dark:to-pink-950/30 sm:p-10">
         <div className="absolute -right-20 -top-20 h-60 w-60 rounded-full bg-violet-400/15 blur-3xl animate-pulse-glow" />
         <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-pink-400/10 blur-3xl animate-float" />
         <div className="absolute right-[25%] top-6 h-1.5 w-1.5 rounded-full bg-violet-500/50 animate-twinkle" />
         <div className="absolute left-[60%] bottom-8 h-1 w-1 rounded-full bg-pink-400/60 animate-twinkle animate-twinkle-delay-2" />
 
         <div className="relative space-y-3">
-          <h1 className="text-4xl font-bold tracking-tight text-stone-900 dark:text-zinc-50">
+          <h1 className="text-3xl font-bold tracking-tight text-stone-900 dark:text-zinc-50 sm:text-4xl">
             {t("brands.title")}
           </h1>
-          <p className="text-stone-600 dark:text-violet-300/70">
+          <p className="text-stone-600 dark:text-zinc-400">
             {t("brands.subtitle")}
           </p>
           <p className="text-sm text-violet-600 dark:text-violet-400">
@@ -91,16 +91,16 @@ export function BrandsContent({ brands }: BrandsContentProps) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t("brands.searchPlaceholder")}
-            className="w-full rounded-2xl border-2 border-violet-200/40 bg-white py-4 pl-12 pr-5 text-stone-900 shadow-sm transition placeholder:text-stone-400 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-500/20 dark:border-violet-500/20 dark:bg-violet-950/10 dark:text-zinc-100 dark:placeholder:text-zinc-600 dark:focus:border-violet-500 dark:focus:ring-violet-500/20"
+            className="w-full rounded-2xl border border-violet-200/50 bg-white py-3.5 pl-12 pr-5 text-stone-900 shadow-sm transition placeholder:text-stone-400 focus:border-violet-500 focus:outline-none focus:ring-4 focus:ring-violet-500/10 dark:border-violet-500/20 dark:bg-violet-950/20 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-violet-500"
           />
         </div>
 
         {/* Alphabet bar */}
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-2">
           <button
             type="button"
             onClick={() => setActiveLetter(null)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition ${
+            className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition ${
               activeLetter === null
                 ? "bg-gradient-to-r from-violet-600 to-pink-500 text-white shadow"
                 : "text-stone-500 hover:bg-violet-100 hover:text-violet-700 dark:text-zinc-500 dark:hover:bg-violet-500/10 dark:hover:text-violet-200"
@@ -116,7 +116,7 @@ export function BrandsContent({ brands }: BrandsContentProps) {
                 type="button"
                 onClick={() => available && setActiveLetter(letter === activeLetter ? null : letter)}
                 disabled={!available}
-                className={`rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
                   activeLetter === letter
                     ? "bg-gradient-to-r from-violet-600 to-pink-500 text-white shadow"
                     : available

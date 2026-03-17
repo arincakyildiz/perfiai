@@ -15,7 +15,7 @@ export function PerfumeCard({ perfume }: PerfumeCardProps) {
   const { brand, name, image_url, accords = [], rating } = perfume;
 
   return (
-    <div className="group flex flex-col overflow-hidden rounded-2xl border-2 border-violet-200/40 bg-white shadow-lg transition-all duration-300 hover:-translate-y-1 hover:border-violet-400/50 hover:shadow-xl hover:shadow-violet-500/10 dark:border-violet-500/20 dark:bg-violet-950/10 dark:hover:border-violet-500/40 dark:hover:bg-violet-950/20 dark:hover:shadow-[0_0_40px_rgba(139,92,246,0.15)]">
+    <div className="group flex h-full flex-col overflow-hidden rounded-[1.4rem] border border-violet-200/50 bg-white shadow-[0_4px_24px_rgba(139,92,246,0.07)] transition-all duration-300 hover:-translate-y-1.5 hover:border-violet-400/60 hover:shadow-[0_16px_48px_rgba(139,92,246,0.15)] dark:border-violet-500/20 dark:bg-violet-950/15 dark:hover:border-violet-500/40 dark:hover:bg-violet-950/20 dark:hover:shadow-[0_0_40px_rgba(139,92,246,0.15)]">
       <div className="relative aspect-[3/4] overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -23,9 +23,10 @@ export function PerfumeCard({ perfume }: PerfumeCardProps) {
           alt={`${brand} ${name}`}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
+        <div className="pointer-events-none absolute inset-x-6 top-4 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         {rating !== undefined && (
-          <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-xs font-medium text-violet-200 backdrop-blur-sm">
+          <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full border border-white/10 bg-black/60 px-2.5 py-1 text-xs font-medium text-violet-100 backdrop-blur-md">
             ★ {rating.toFixed(1)}
           </div>
         )}
@@ -44,7 +45,7 @@ export function PerfumeCard({ perfume }: PerfumeCardProps) {
             {accords.slice(0, 3).map((acc, index) => (
               <span
                 key={`${acc}-${index}`}
-                className="rounded-full bg-stone-100 px-2.5 py-0.5 text-[11px] text-stone-600 dark:bg-violet-950/40 dark:text-zinc-400 dark:ring-1 dark:ring-violet-950/60"
+                className="rounded-full border border-stone-200/70 bg-stone-100/80 px-2.5 py-0.5 text-[11px] text-stone-600 dark:border-violet-500/10 dark:bg-violet-950/40 dark:text-zinc-400"
               >
                 {acc}
               </span>

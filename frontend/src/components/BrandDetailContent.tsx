@@ -36,7 +36,7 @@ export function BrandDetailContent({
     <main className="space-y-8">
       <Link
         href="/brands"
-        className="inline-flex items-center text-sm text-zinc-500 hover:text-violet-200"
+        className="hover-underline inline-flex items-center text-sm text-zinc-500 hover:text-violet-200"
       >
         {t("brands.back")}
       </Link>
@@ -69,16 +69,16 @@ export function BrandDetailContent({
       )}
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-4">
+        <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4">
           {page > 1 ? (
             <Link
               href={`/brands/${slug}?page=${page - 1}`}
-              className="rounded-xl border-2 border-stone-200 bg-white px-5 py-2.5 text-sm font-medium text-stone-700 transition hover:bg-stone-50 hover:text-violet-700 dark:border-violet-950/40 dark:bg-violet-950/10 dark:text-zinc-300 dark:hover:bg-violet-950/20 dark:hover:text-violet-100"
+              className="w-full rounded-xl border-2 border-stone-200 bg-white px-5 py-2.5 text-center text-sm font-medium text-stone-700 transition hover:bg-stone-50 hover:text-violet-700 dark:border-violet-950/40 dark:bg-violet-950/10 dark:text-zinc-300 dark:hover:bg-violet-950/20 dark:hover:text-violet-100 sm:w-auto"
             >
               {t("explore.prev")}
             </Link>
           ) : (
-            <span className="rounded-xl border border-stone-200 px-5 py-2.5 text-sm text-stone-400 dark:border-violet-950/30 dark:text-zinc-600">
+            <span className="w-full rounded-xl border border-stone-200 px-5 py-2.5 text-center text-sm text-stone-400 dark:border-violet-950/30 dark:text-zinc-600 sm:w-auto">
               {t("explore.prev")}
             </span>
           )}
@@ -88,12 +88,12 @@ export function BrandDetailContent({
           {page < totalPages ? (
             <Link
               href={`/brands/${slug}?page=${page + 1}`}
-              className="rounded-xl border-2 border-stone-200 bg-white px-5 py-2.5 text-sm font-medium text-stone-700 transition hover:bg-stone-50 hover:text-violet-700 dark:border-violet-950/40 dark:bg-violet-950/10 dark:text-zinc-300 dark:hover:bg-violet-950/20 dark:hover:text-violet-100"
+              className="w-full rounded-xl border-2 border-stone-200 bg-white px-5 py-2.5 text-center text-sm font-medium text-stone-700 transition hover:bg-stone-50 hover:text-violet-700 dark:border-violet-950/40 dark:bg-violet-950/10 dark:text-zinc-300 dark:hover:bg-violet-950/20 dark:hover:text-violet-100 sm:w-auto"
             >
               {t("explore.next")}
             </Link>
           ) : (
-            <span className="rounded-xl border border-stone-200 px-5 py-2.5 text-sm text-stone-400 dark:border-violet-950/30 dark:text-zinc-600">
+            <span className="w-full rounded-xl border border-stone-200 px-5 py-2.5 text-center text-sm text-stone-400 dark:border-violet-950/30 dark:text-zinc-600 sm:w-auto">
               {t("explore.next")}
             </span>
           )}

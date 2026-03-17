@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import type { FC, FormEvent } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { PerfumeCard } from "@/components/PerfumeCard";
+import { Dropdown } from "@/components/Dropdown";
 import { apiUrl } from "@/lib/api";
 
 type SearchPerfume = {
@@ -76,7 +77,7 @@ export const SearchSection: FC = () => {
     <section className="space-y-8">
       <form
         onSubmit={handleSubmit}
-        className="rounded-2xl border-2 border-violet-200/40 bg-white p-6 shadow-lg dark:border-violet-500/20 dark:bg-violet-950/10 sm:p-8"
+        className="rounded-2xl border-2 border-violet-200/40 bg-white p-4 shadow-lg dark:border-violet-500/20 dark:bg-violet-950/10 sm:p-8"
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="flex-1 rounded-xl border-2 border-violet-200/40 bg-violet-50/50 px-5 py-3.5 focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/20 dark:border-violet-500/30 dark:bg-black/30 dark:focus-within:border-violet-500 dark:focus-within:ring-violet-500/20">
@@ -90,38 +91,36 @@ export const SearchSection: FC = () => {
           <button
             type="submit"
             disabled={isPending}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-violet-500 bg-gradient-to-r from-violet-600 to-pink-500 px-6 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:from-violet-500 hover:to-pink-400 disabled:opacity-60 dark:border-violet-500/40 dark:bg-violet-950/50 dark:text-violet-200 dark:shadow-[0_0_20px_rgba(139,92,246,0.2)] dark:hover:border-violet-500/50 dark:hover:bg-violet-950/70 dark:hover:text-violet-100 dark:hover:shadow-[0_0_30px_rgba(139,92,246,0.25)]"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-violet-500 bg-gradient-to-r from-violet-600 to-pink-500 px-6 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:from-violet-500 hover:to-pink-400 disabled:opacity-60 dark:border-violet-500/40 dark:bg-violet-950/50 dark:text-violet-200 dark:shadow-[0_0_20px_rgba(139,92,246,0.2)] dark:hover:border-violet-500/50 dark:hover:bg-violet-950/70 dark:hover:text-violet-100 dark:hover:shadow-[0_0_30px_rgba(139,92,246,0.25)] sm:w-auto"
           >
             {isPending ? t("home.searching") : t("home.searchButton")}
           </button>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <select
+        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+          <Dropdown
             value={gender}
-            onChange={(e) => setGender(e.target.value)}
-            className="rounded-lg border-2 border-violet-200/40 bg-violet-50/50 px-3 py-2 text-xs text-stone-700 focus:border-violet-500 focus:outline-none dark:border-violet-500/30 dark:bg-black/30 dark:text-zinc-300 dark:focus:border-violet-500"
-          >
-            <option value="">{t("home.filterGender")}</option>
-            <option value="male">{t("home.genderMale")}</option>
-            <option value="female">{t("home.genderFemale")}</option>
-            <option value="unisex">{t("home.genderUnisex")}</option>
-          </select>
-
-          <select
+            onChange={setGender}
+            options={[
+              { value: "", label: t("home.filterGender") },
+              { value: "male", label: t("home.genderMale") },
+              { value: "female", label: t("home.genderFemale") },
+              { value: "unisex", label: t("home.genderUnisex") },
+            ]}
+          />
+          <Dropdown
             value={season}
-            onChange={(e) => setSeason(e.target.value)}
-            className="rounded-lg border-2 border-violet-200/40 bg-violet-50/50 px-3 py-2 text-xs text-stone-700 focus:border-violet-500 focus:outline-none dark:border-violet-500/30 dark:bg-black/30 dark:text-zinc-300 dark:focus:border-violet-500"
-          >
-            <option value="">{t("home.filterSeason")}</option>
-            <option value="spring">{t("seasons.spring")}</option>
-            <option value="summer">{t("seasons.summer")}</option>
-            <option value="fall">{t("seasons.fall")}</option>
-            <option value="winter">{t("seasons.winter")}</option>
-          </select>
-
+            onChange={setSeason}
+            options={[
+              { value: "", label: t("home.filterSeason") },
+              { value: "spring", label: t("seasons.spring") },
+              { value: "summer", label: t("seasons.summer") },
+              { value: "fall", label: t("seasons.fall") },
+              { value: "winter", label: t("seasons.winter") },
+            ]}
+          />
           {meta && (
-            <span className="ml-auto text-xs text-stone-500 dark:text-zinc-500">
+            <span className="flex items-center text-xs text-stone-500 dark:text-zinc-500">
               {meta.total} {t("ai.resultsCount")} • {meta.mode}
             </span>
           )}

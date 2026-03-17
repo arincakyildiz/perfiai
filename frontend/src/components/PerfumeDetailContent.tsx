@@ -22,6 +22,7 @@ type Perfume = {
   season?: string[];
   year?: number;
   short_description?: string;
+  short_description_tr?: string;
   notes?: Notes;
 };
 
@@ -31,20 +32,24 @@ type PerfumeDetailContentProps = {
 };
 
 export function PerfumeDetailContent({ perfume, similar }: PerfumeDetailContentProps) {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const accords = perfume.accords ?? [];
   const season = perfume.season ?? [];
+  const description =
+    locale === "tr" && perfume.short_description_tr
+      ? perfume.short_description_tr
+      : perfume.short_description;
 
   return (
-    <main className="space-y-12">
+    <main className="space-y-10 sm:space-y-12">
       <Link
         href="/explore"
-        className="inline-flex items-center gap-2 text-sm text-stone-500 transition hover:text-violet-600 dark:text-zinc-500 dark:hover:text-violet-200"
+        className="hover-underline inline-flex items-center gap-2 text-sm text-stone-500 transition hover:text-violet-600 dark:text-zinc-500 dark:hover:text-violet-200"
       >
         {t("perfume.back")}
       </Link>
 
-      <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-12">
         <div className="mx-auto w-full max-w-md">
           <div className="overflow-hidden rounded-3xl border-2 border-stone-200 bg-white shadow-lg dark:border-violet-950/40 dark:bg-violet-950/10 dark:shadow-[0_0_60px_rgba(212,165,116,0.05)]">
             <div className="relative aspect-[3/4] overflow-hidden">
@@ -64,12 +69,12 @@ export function PerfumeDetailContent({ perfume, similar }: PerfumeDetailContentP
           </div>
         </div>
 
-        <div className="space-y-8">
+        <div className="space-y-6 sm:space-y-8">
           <div className="space-y-2">
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-zinc-500">
               {perfume.brand}
             </p>
-            <h1 className="text-3xl font-bold tracking-tight text-stone-900 dark:text-zinc-50">
+            <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-zinc-50 sm:text-3xl">
               {perfume.name}
             </h1>
             <div className="flex flex-wrap gap-2">
@@ -91,9 +96,9 @@ export function PerfumeDetailContent({ perfume, similar }: PerfumeDetailContentP
             </div>
           </div>
 
-          {perfume.short_description && (
+          {description && (
             <p className="text-base leading-relaxed text-stone-600 dark:text-zinc-400">
-              {perfume.short_description}
+              {description}
             </p>
           )}
 
@@ -116,13 +121,13 @@ export function PerfumeDetailContent({ perfume, similar }: PerfumeDetailContentP
           )}
 
           {accords.length > 0 && (
-            <div className="rounded-2xl border-2 border-stone-200 bg-stone-50 p-6 dark:border-violet-950/40 dark:bg-violet-950/10">
+            <div className="rounded-2xl border-2 border-stone-200 bg-stone-50 p-4 dark:border-violet-950/40 dark:bg-violet-950/10 sm:p-6">
               <AccordsChart accords={accords} />
             </div>
           )}
 
           {perfume.notes && (
-            <div className="grid gap-6 rounded-2xl border-2 border-stone-200 bg-stone-50 p-6 sm:grid-cols-3 dark:border-violet-950/40 dark:bg-violet-950/10">
+            <div className="grid gap-5 rounded-2xl border-2 border-stone-200 bg-stone-50 p-4 sm:grid-cols-3 sm:gap-6 sm:p-6 dark:border-violet-950/40 dark:bg-violet-950/10">
               <div className="space-y-2">
                 <h3 className="text-[11px] font-semibold uppercase tracking-[0.16em] text-stone-500 dark:text-zinc-500">
                   {t("perfume.topNotes")}

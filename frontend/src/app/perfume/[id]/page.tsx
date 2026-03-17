@@ -18,6 +18,7 @@ type Perfume = {
   season?: string[];
   year?: number;
   short_description?: string;
+  short_description_tr?: string;
   notes?: Notes;
 };
 

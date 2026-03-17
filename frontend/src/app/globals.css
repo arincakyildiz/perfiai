@@ -46,6 +46,29 @@ body {
   min-height: 100vh;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: rgba(139, 92, 246, 0.25);
+  color: inherit;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 240ms;
+  animation-timing-function: ease;
+}
+
+::view-transition-old(root) {
+  animation-name: page-out;
+}
+
+::view-transition-new(root) {
+  animation-name: page-in;
+}
+
 /* Multi-layered background gradient - dark */
 .dark body::before {
   content: "";
@@ -102,6 +125,31 @@ body {
   -webkit-backdrop-filter: blur(12px) saturate(1.2);
 }
 
+.hover-underline {
+  position: relative;
+}
+
+.hover-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -0.18rem;
+  height: 2px;
+  width: 100%;
+  transform: scaleX(0);
+  transform-origin: left;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, rgba(139, 92, 246, 0.95), rgba(244, 114, 182, 0.9));
+  transition: transform 220ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hover-underline:hover::after,
+  .hover-underline:focus-visible::after {
+    transform: scaleX(1);
+  }
+}
+
 /* Animations */
 @keyframes shimmer {
   0%, 100% { opacity: 0.4; }
@@ -139,6 +187,43 @@ body {
   to { opacity: 1; }
 }
 
+@keyframes dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes page-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
 .animate-shimmer { animation: shimmer 3s ease-in-out infinite; }
 .animate-float { animation: float 8s ease-in-out infinite; }
 .animate-pulse-glow { animation: pulse-glow 5s ease-in-out infinite; }
@@ -151,3 +236,17 @@ body {
 .animate-twinkle-delay-2 { animation-delay: 1.2s; }
 .animate-twinkle-delay-3 { animation-delay: 1.8s; }
 .animate-twinkle-delay-4 { animation-delay: 2.4s; }
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

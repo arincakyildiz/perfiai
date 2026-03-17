@@ -35,7 +35,7 @@ export default async function RootLayout({
         <ThemeProvider initialTheme={theme}>
           <LanguageProvider initialLocale={locale}>
             <AnimatedBackground />
-            <div className="relative z-10 mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
+            <div className="relative z-10 mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
               <Navbar />
               <main className="flex-1">{children}</main>
               <Footer />
