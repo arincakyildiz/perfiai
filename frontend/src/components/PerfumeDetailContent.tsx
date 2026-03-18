@@ -1,14 +1,26 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { PerfumeCard } from "@/components/PerfumeCard";
 import { AccordsChart } from "@/components/AccordsChart";
+import { CommentSection } from "@/components/CommentSection";
+import { RatingStars } from "@/components/RatingStars";
+import { VerifiedBanner } from "@/components/VerifiedBanner";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 type Notes = {
   top?: string[];
   middle?: string[];
   base?: string[];
+};
+
+type Comment = {
+  id: string;
+  userId: string;
+  userName: string;
+  text: string;
+  createdAt: string;
 };
 
 type Perfume = {
@@ -18,12 +30,14 @@ type Perfume = {
   image_url?: string;
   accords?: string[];
   rating?: number;
+  user_rating_count?: number;
   gender?: string;
   season?: string[];
   year?: number;
   short_description?: string;
   short_description_tr?: string;
   notes?: Notes;
+  comments?: Comment[];
 };
 
 type PerfumeDetailContentProps = {
@@ -33,6 +47,8 @@ type PerfumeDetailContentProps = {
 
 export function PerfumeDetailContent({ perfume, similar }: PerfumeDetailContentProps) {
   const { t, locale } = useLanguage();
+  const [displayRating, setDisplayRating] = useState(perfume.rating);
+  const [displayCount, setDisplayCount] = useState(perfume.user_rating_count ?? 0);
   const accords = perfume.accords ?? [];
   const season = perfume.season ?? [];
   const description =
@@ -49,6 +65,8 @@ export function PerfumeDetailContent({ perfume, similar }: PerfumeDetailContentP
         {t("perfume.back")}
       </Link>
 
+      <VerifiedBanner />
+
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-12">
         <div className="mx-auto w-full max-w-md">
           <div className="overflow-hidden rounded-3xl border-2 border-stone-200 bg-white shadow-lg dark:border-violet-950/40 dark:bg-violet-950/10 dark:shadow-[0_0_60px_rgba(212,165,116,0.05)]">
@@ -60,9 +78,9 @@ export function PerfumeDetailContent({ perfume, similar }: PerfumeDetailContentP
                 className="h-full w-full object-cover"
               />
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-              {typeof perfume.rating === "number" && (
+              {(typeof displayRating === "number" ? displayRating : perfume.rating) !== undefined && (
                 <div className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-sm font-semibold text-violet-200 backdrop-blur-sm">
-                  ★ {perfume.rating.toFixed(1)}
+                  ★ {(displayRating ?? perfume.rating)!.toFixed(1)}
                 </div>
               )}
             </div>
@@ -94,6 +112,18 @@ export function PerfumeDetailContent({ perfume, similar }: PerfumeDetailContentP
                 </span>
               )}
             </div>
+          </div>
+
+          <div className="rounded-2xl border-2 border-stone-200 bg-stone-50 p-4 dark:border-violet-950/40 dark:bg-violet-950/10 sm:p-5">
+            <RatingStars
+              perfumeId={perfume.id}
+              currentRating={displayRating ?? perfume.rating}
+              userRatingCount={displayCount}
+              onRated={(r, c) => {
+                setDisplayRating(r);
+                setDisplayCount(c);
+              }}
+            />
           </div>
 
           {description && (
@@ -155,6 +185,13 @@ export function PerfumeDetailContent({ perfume, similar }: PerfumeDetailContentP
             </div>
           )}
         </div>
+      </div>
+
+      <div className="rounded-2xl border-2 border-stone-200 bg-stone-50 p-4 dark:border-violet-950/40 dark:bg-violet-950/10 sm:p-6">
+        <CommentSection
+          perfumeId={perfume.id}
+          initialComments={perfume.comments ?? []}
+        />
       </div>
 
       {similar.length > 0 && (

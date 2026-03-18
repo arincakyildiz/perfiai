@@ -29,6 +29,7 @@ type ExplorePageProps = {
     brand?: string;
     gender?: string;
     season?: string;
+    sort?: string;
     q?: string;
   }>;
 };
@@ -52,12 +53,13 @@ async function fetchPerfumes(params: {
   brand?: string;
   gender?: string;
   season?: string;
+  sort?: string;
   q?: string;
 }): Promise<PerfumeListResponse | null> {
   const sp = new URLSearchParams();
   sp.set("page", String(params.page));
   sp.set("limit", "24");
-  sp.set("sort", "rating");
+  sp.set("sort", params.sort || "rating");
   if (params.brand) sp.set("brand", params.brand);
   if (params.q) sp.set("q", params.q);
   if (params.gender) sp.set("gender", params.gender);
@@ -81,6 +83,9 @@ export default async function ExplorePage({ searchParams }: ExplorePageProps) {
   const brand = params.brand || "";
   const gender = params.gender || "";
   const season = params.season || "";
+  const sort = ["rating", "year", "name"].includes(params.sort || "")
+    ? params.sort!
+    : "rating";
   const q = params.q || "";
 
   const [brands, list] = await Promise.all([
@@ -90,6 +95,7 @@ export default async function ExplorePage({ searchParams }: ExplorePageProps) {
       brand: brand || undefined,
       gender: gender || undefined,
       season: season || undefined,
+      sort,
       q: q || undefined,
     }),
   ]);
@@ -109,6 +115,7 @@ export default async function ExplorePage({ searchParams }: ExplorePageProps) {
       currentBrand={brand}
       currentGender={gender}
       currentSeason={season}
+      currentSort={sort}
       loadError={loadError}
     />
   );

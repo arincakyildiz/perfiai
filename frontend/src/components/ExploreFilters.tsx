@@ -11,6 +11,7 @@ type ExploreFiltersProps = {
   currentBrand: string;
   currentGender: string;
   currentSeason: string;
+  currentSort: string;
 };
 
 export function ExploreFilters({
@@ -18,18 +19,19 @@ export function ExploreFilters({
   currentBrand,
   currentGender,
   currentSeason,
+  currentSort = "rating",
 }: ExploreFiltersProps) {
   const { t } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const handleChange = useCallback(
-    (key: "brand" | "gender" | "season", value: string) => {
+    (key: "brand" | "gender" | "season" | "sort", value: string) => {
       const params = new URLSearchParams(searchParams.toString());
       params.set("page", "1");
       if (value) params.set(key, value);
       else params.delete(key);
-      params.delete("q");
+      if (key !== "sort") params.delete("q");
       router.push(`/explore?${params.toString()}`);
     },
     [router, searchParams]
@@ -40,6 +42,12 @@ export function ExploreFilters({
   }, [router]);
 
   const hasFilters = currentBrand || currentGender || currentSeason;
+
+  const sortOptions: DropdownOption[] = [
+    { value: "rating", label: t("explore.sortRating") },
+    { value: "year", label: t("explore.sortYear") },
+    { value: "name", label: t("explore.sortName") },
+  ];
 
   const brandOptions: DropdownOption[] = [
     { value: "", label: t("explore.filterBrand") },
@@ -87,7 +95,12 @@ export function ExploreFilters({
           </button>
         )}
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Dropdown
+          value={currentSort}
+          onChange={(v) => handleChange("sort", v)}
+          options={sortOptions}
+        />
         <Dropdown
           value={currentBrand}
           onChange={(v) => handleChange("brand", v)}

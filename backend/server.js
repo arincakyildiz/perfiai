@@ -2,22 +2,33 @@
  * Perfiai Backend API
  * GET /perfumes - Liste (pagination, search, filter)
  * GET /perfumes/:id - Tek parfüm detayı
+ * Auth: register, login, rate, comment (giriş gerekli)
  */
 
 import express from "express";
 import cors from "cors";
+import crypto from "crypto";
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+const JWT_SECRET = process.env.JWT_SECRET || "perfiai-dev-secret-change-in-prod";
+const SITE_URL = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
 const app = express();
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
 const DATA_PATH = join(__dirname, "..", "data", "perfumes.json");
+const USERS_PATH = join(__dirname, "..", "data", "users.json");
+const COMMENTS_PATH = join(__dirname, "..", "data", "perfume_comments.json");
+const VERIFICATION_TOKENS_PATH = join(__dirname, "..", "data", "verification_tokens.json");
+const LOGIN_CODES_PATH = join(__dirname, "..", "data", "login_codes.json");
 // SentenceTransformers ile önceden üretilmiş embedding dosyası
 const EMBEDDINGS_PATH = join(
   __dirname,
@@ -25,8 +36,10 @@ const EMBEDDINGS_PATH = join(
   "data",
   "perfume_embeddings_st.json"
 );
+const USER_RATINGS_PATH = join(__dirname, "..", "data", "user_ratings.json");
 
 let perfumes = [];
+let userRatings = {}; // { perfumeId: { sum, count } }
 let perfumeEmbeddings = [];
 let embeddingsReady = false;
 let embeddingsLoadingPromise = null;
@@ -43,6 +56,205 @@ function loadPerfumes() {
 }
 
 loadPerfumes();
+
+function loadUserRatings() {
+  if (!existsSync(USER_RATINGS_PATH)) return {};
+  try {
+    const raw = readFileSync(USER_RATINGS_PATH, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+function saveUserRatings() {
+  try {
+    writeFileSync(USER_RATINGS_PATH, JSON.stringify(userRatings, null, 2), "utf-8");
+  } catch (err) {
+    console.error("user_ratings yazılamadı:", err.message);
+  }
+}
+
+userRatings = loadUserRatings();
+
+let users = [];
+function loadUsers() {
+  if (!existsSync(USERS_PATH)) return [];
+  try {
+    return JSON.parse(readFileSync(USERS_PATH, "utf-8"));
+  } catch {
+    return [];
+  }
+}
+function saveUsers() {
+  writeFileSync(USERS_PATH, JSON.stringify(users, null, 2), "utf-8");
+}
+users = loadUsers();
+
+let comments = {}; // { perfumeId: [{ id, userId, userName, text, createdAt }] }
+function loadComments() {
+  if (!existsSync(COMMENTS_PATH)) return {};
+  try {
+    return JSON.parse(readFileSync(COMMENTS_PATH, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+function saveComments() {
+  writeFileSync(COMMENTS_PATH, JSON.stringify(comments, null, 2), "utf-8");
+}
+comments = loadComments();
+
+let verificationTokens = {}; // { token: { userId, expiresAt } }
+function loadVerificationTokens() {
+  if (!existsSync(VERIFICATION_TOKENS_PATH)) return {};
+  try {
+    return JSON.parse(readFileSync(VERIFICATION_TOKENS_PATH, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+function saveVerificationTokens() {
+  writeFileSync(VERIFICATION_TOKENS_PATH, JSON.stringify(verificationTokens, null, 2), "utf-8");
+}
+verificationTokens = loadVerificationTokens();
+
+let loginCodes = {}; // { email: { code, expiresAt } }
+function loadLoginCodes() {
+  if (!existsSync(LOGIN_CODES_PATH)) return {};
+  try {
+    return JSON.parse(readFileSync(LOGIN_CODES_PATH, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+function saveLoginCodes() {
+  writeFileSync(LOGIN_CODES_PATH, JSON.stringify(loginCodes, null, 2), "utf-8");
+}
+loginCodes = loadLoginCodes();
+
+function createTransporter() {
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!host || !user || !pass) return null;
+  return nodemailer.createTransport({
+    host,
+    port: parseInt(process.env.SMTP_PORT || "587", 10),
+    secure: process.env.SMTP_SECURE === "1",
+    auth: { user, pass },
+  });
+}
+
+async function sendVerificationEmail(email, token) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.warn("SMTP yapılandırılmamış - doğrulama e-postası gönderilemedi. Token:", token);
+    return false;
+  }
+  const verifyUrl = `${SITE_URL.replace(/\/$/, "")}/auth/verify?token=${token}`;
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: email,
+    subject: "Perfiai - E-posta adresinizi doğrulayın",
+    html: `
+      <p>Merhaba,</p>
+      <p>Perfiai hesabınızı oluşturdunuz. E-posta adresinizi doğrulamak için aşağıdaki bağlantıya tıklayın:</p>
+      <p><a href="${verifyUrl}" style="color:#7c3aed;font-weight:bold">E-postamı doğrula</a></p>
+      <p>Veya bu linki tarayıcınıza kopyalayın: ${verifyUrl}</p>
+      <p>Bu link 24 saat geçerlidir.</p>
+      <p>— Perfiai</p>
+    `,
+  });
+  return true;
+}
+
+async function sendLoginCodeEmail(email, code) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.warn("SMTP yapılandırılmamış - giriş kodu gönderilemedi. Kod:", code);
+    return false;
+  }
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: email,
+    subject: "Perfiai - Giriş kodunuz",
+    html: `
+      <p>Merhaba,</p>
+      <p>Perfiai giriş kodunuz: <strong style="font-size:24px;letter-spacing:4px">${code}</strong></p>
+      <p>Bu kod 10 dakika geçerlidir.</p>
+      <p>— Perfiai</p>
+    `,
+  });
+  return true;
+}
+
+function requireAuth(req, res, next) {
+  const auth = req.headers.authorization;
+  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : req.body?.token;
+  if (!token) {
+    return res.status(401).json({ error: "Giriş yapmanız gerekiyor" });
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = users.find((u) => u.id === decoded.id);
+    if (!user) return res.status(401).json({ error: "Kullanıcı bulunamadı" });
+    // verified undefined = eski kullanıcı, doğrulama atlanır
+    const verified = user.verified === undefined ? true : !!user.verified;
+    req.user = { id: user.id, email: user.email, name: user.name, verified };
+    next();
+  } catch {
+    return res.status(401).json({ error: "Geçersiz veya süresi dolmuş oturum" });
+  }
+}
+
+function requireVerified(req, res, next) {
+  if (!req.user.verified) {
+    return res.status(403).json({ error: "Değerlendirme ve yorum için e-posta doğrulaması gerekli" });
+  }
+  next();
+}
+
+// Yorum moderasyonu: kötü içerik engelle (basit blocklist + OpenAI Moderation opsiyonel)
+const BAD_WORDS = new Set([
+  "kötü", "berbat", "pis", "çöp", "rezalet", "berbat", "iğrenç", "değersiz",
+  "fuck", "shit", "damn", "ass", "hate", "stupid", "ugly", "trash", "garbage",
+  "bok", "siktir", "amk", "orospu", "göt", "salak", "aptal", "mal",
+]);
+function moderateText(text) {
+  if (!text || typeof text !== "string") return { ok: false, reason: "Boş yorum" };
+  const t = text.trim();
+  if (t.length < 3) return { ok: false, reason: "Yorum çok kısa (en az 3 karakter)" };
+  if (t.length > 500) return { ok: false, reason: "Yorum çok uzun (en fazla 500 karakter)" };
+  const lower = t.toLowerCase();
+  for (const w of BAD_WORDS) {
+    if (lower.includes(w)) return { ok: false, reason: "Yorumunuz uygun değil" };
+  }
+  return { ok: true };
+}
+
+// Mevcut rating + kullanıcı değerlendirmeleri → birleşik puan (Bayesian ortalama)
+const BASE_WEIGHT = 5; // mevcut rating sanki 5 kişi vermiş gibi
+function computeCombinedRating(perfume, ur = userRatings) {
+  const base = typeof perfume.rating === "number" ? perfume.rating : 0;
+  const urData = ur[String(perfume.id)];
+  if (!urData || urData.count === 0) {
+    return base > 0 ? base : null;
+  }
+  const combined =
+    (base * BASE_WEIGHT + urData.sum) / (BASE_WEIGHT + urData.count);
+  return Math.round(combined * 10) / 10;
+}
+
+function enrichWithRating(p) {
+  const combined = computeCombinedRating(p);
+  const urData = userRatings[String(p.id)];
+  return {
+    ...p,
+    rating: combined ?? (typeof p.rating === "number" ? p.rating : undefined),
+    user_rating_count: urData?.count ?? 0,
+  };
+}
 
 // Bir parfümü embedding için tek satırlık metne çevir
 function getPerfumeText(perfume) {
@@ -607,6 +819,7 @@ function scorePerfumeForQuery(perfume, rawQuery) {
 app.get("/perfumes", (req, res) => {
   const filtered = applyCommonFilters(perfumes, req.query);
   const response = paginate(filtered, req.query);
+  response.data = response.data.map(enrichWithRating);
   res.json(response);
 });
 
@@ -775,15 +988,209 @@ app.post("/ai-search", async (req, res) => {
   }
 });
 
-// GET /perfumes/:id - Tek parfüm
+// GET /perfumes/:id - Tek parfüm (yorumlar dahil)
 app.get("/perfumes/:id", (req, res) => {
   const id = req.params.id;
   const perfume = perfumes.find((p) => p.id === id || p.id === parseInt(id));
   if (!perfume) {
     return res.status(404).json({ error: "Parfüm bulunamadı", id });
   }
-  res.json(perfume);
+  const enriched = enrichWithRating(perfume);
+  enriched.comments = (comments[id] || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  res.json(enriched);
 });
+
+// POST /auth/register (Kaydet) - Sadece email, 2 haftalık token, kod yok
+app.post("/auth/register", async (req, res) => {
+  const { email, name } = req.body || {};
+  if (!email || typeof email !== "string") {
+    return res.status(400).json({ error: "Email gerekli" });
+  }
+  const emailNorm = email.trim().toLowerCase();
+  if (emailNorm.length < 3) return res.status(400).json({ error: "Geçerli email girin" });
+  let user = users.find((u) => u.email.toLowerCase() === emailNorm);
+  if (!user) {
+    user = {
+      id: String(Date.now()),
+      email: emailNorm,
+      name: (name || emailNorm.split("@")[0]).trim().slice(0, 50),
+      verified: true,
+    };
+    users.push(user);
+    saveUsers();
+  }
+  const token = jwt.sign(
+    { id: user.id, email: user.email, name: user.name, verified: true },
+    JWT_SECRET,
+    { expiresIn: "14d" }
+  );
+  res.json({
+    ok: true,
+    token,
+    user: { id: user.id, email: user.email, name: user.name, verified: true },
+    message: "Kayıt başarılı. 2 hafta boyunca giriş yapmanız gerekmez.",
+  });
+});
+
+// POST /auth/send-code - Giriş kodu gönder
+app.post("/auth/send-code", async (req, res) => {
+  const { email } = req.body || {};
+  if (!email || typeof email !== "string") return res.status(400).json({ error: "Email gerekli" });
+  const emailNorm = email.trim().toLowerCase();
+  const user = users.find((u) => u.email === emailNorm);
+  if (!user) return res.status(404).json({ error: "Bu email ile kayıtlı hesap bulunamadı. Önce kayıt olun." });
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  loginCodes[emailNorm] = { code, expiresAt: Date.now() + 10 * 60 * 1000 };
+  saveLoginCodes();
+  await sendLoginCodeEmail(emailNorm, code);
+  res.json({ ok: true, message: "Giriş kodu e-postanıza gönderildi" });
+});
+
+// POST /auth/verify-code - Kodu doğrula, token dön (remember=true ise 2 hafta)
+app.post("/auth/verify-code", async (req, res) => {
+  const { email, code, remember } = req.body || {};
+  if (!email || !code || typeof email !== "string" || typeof code !== "string") {
+    return res.status(400).json({ error: "Email ve kod gerekli" });
+  }
+  const emailNorm = email.trim().toLowerCase();
+  const data = loginCodes[emailNorm];
+  if (!data) return res.status(400).json({ error: "Kod süresi dolmuş. Yeni kod isteyin." });
+  if (Date.now() > data.expiresAt) {
+    delete loginCodes[emailNorm];
+    saveLoginCodes();
+    return res.status(400).json({ error: "Kod süresi dolmuş. Yeni kod isteyin." });
+  }
+  if (data.code !== String(code).trim()) return res.status(401).json({ error: "Geçersiz kod" });
+  delete loginCodes[emailNorm];
+  saveLoginCodes();
+  const user = users.find((u) => u.email === emailNorm);
+  if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+  const verified = user.verified === undefined ? true : !!user.verified;
+  const expiresIn = remember ? "14d" : "24h";
+  const token = jwt.sign(
+    { id: user.id, email: user.email, name: user.name, verified },
+    JWT_SECRET,
+    { expiresIn }
+  );
+  res.json({
+    ok: true,
+    token,
+    user: { id: user.id, email: user.email, name: user.name, verified },
+  });
+});
+
+// GET /auth/verify?token=xxx - E-posta doğrulama
+app.get("/auth/verify", (req, res) => {
+  const token = req.query.token;
+  if (!token || typeof token !== "string") {
+    return res.status(400).json({ error: "Doğrulama linki geçersiz" });
+  }
+  const data = verificationTokens[token];
+  if (!data) return res.status(400).json({ error: "Doğrulama linki geçersiz veya süresi dolmuş" });
+  if (Date.now() > data.expiresAt) {
+    delete verificationTokens[token];
+    saveVerificationTokens();
+    return res.status(400).json({ error: "Doğrulama linkinin süresi dolmuş. Yeni link isteyin." });
+  }
+  const user = users.find((u) => u.id === data.userId);
+  if (!user) return res.status(400).json({ error: "Kullanıcı bulunamadı" });
+  user.verified = true;
+  saveUsers();
+  delete verificationTokens[token];
+  saveVerificationTokens();
+  res.json({ ok: true, message: "E-posta adresiniz doğrulandı" });
+});
+
+// POST /auth/resend-verification - Doğrulama e-postasını tekrar gönder (giriş gerekli)
+app.post("/auth/resend-verification", requireAuth, async (req, res) => {
+  const user = users.find((u) => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+  if (user.verified) return res.status(400).json({ error: "E-posta zaten doğrulanmış" });
+  const verifyToken = crypto.randomBytes(32).toString("hex");
+  verificationTokens[verifyToken] = { userId: user.id, expiresAt: Date.now() + 24 * 60 * 60 * 1000 };
+  saveVerificationTokens();
+  await sendVerificationEmail(user.email, verifyToken);
+  res.json({ ok: true, message: "Doğrulama e-postası tekrar gönderildi" });
+});
+
+// GET /auth/me - token ile kullanıcı bilgisi
+app.get("/auth/me", (req, res) => {
+  const auth = req.headers.authorization;
+  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : req.query?.token;
+  if (!token) return res.status(401).json({ error: "Token gerekli" });
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const user = users.find((u) => u.id === decoded.id);
+    if (!user) return res.status(401).json({ error: "Kullanıcı bulunamadı" });
+    const verified = user.verified === undefined ? true : !!user.verified;
+    res.json({
+      ok: true,
+      user: { id: user.id, email: user.email, name: user.name, verified },
+    });
+  } catch {
+    res.status(401).json({ error: "Geçersiz token" });
+  }
+});
+
+// POST /perfumes/:id/rate - Kullanıcı değerlendirmesi (1-5) - GİRİŞ + DOĞRULAMA GEREKLİ
+app.post("/perfumes/:id/rate", requireAuth, requireVerified, (req, res) => {
+  const id = String(req.params.id);
+  const perfume = perfumes.find((p) => String(p.id) === id);
+  if (!perfume) {
+    return res.status(404).json({ error: "Parfüm bulunamadı", id });
+  }
+  let rating = req.body?.rating;
+  if (typeof rating !== "number") rating = parseFloat(rating);
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    return res.status(400).json({ error: "rating 1-5 arası sayı olmalı" });
+  }
+  rating = Math.round(rating * 10) / 10;
+  const clamped = Math.min(5, Math.max(1, rating));
+  const userId = req.user.id;
+
+  if (!userRatings[id]) userRatings[id] = { sum: 0, count: 0, byUser: {} };
+  if (!userRatings[id].byUser) userRatings[id].byUser = {};
+  const prev = userRatings[id].byUser[userId];
+  if (prev !== undefined) {
+    userRatings[id].sum -= prev;
+    userRatings[id].sum += clamped;
+  } else {
+    userRatings[id].sum += clamped;
+    userRatings[id].count += 1;
+  }
+  userRatings[id].byUser[userId] = clamped;
+  saveUserRatings();
+
+  const combined = computeCombinedRating(perfume);
+  res.json({
+    ok: true,
+    rating: combined,
+    user_rating_count: userRatings[id].count,
+  });
+});
+
+// POST /perfumes/:id/comments - Yorum ekle - GİRİŞ + DOĞRULAMA GEREKLİ, MODERASYON
+app.post("/perfumes/:id/comments", requireAuth, requireVerified, (req, res) => {
+  const id = String(req.params.id);
+  const perfume = perfumes.find((p) => String(p.id) === id);
+  if (!perfume) return res.status(404).json({ error: "Parfüm bulunamadı", id });
+  const text = req.body?.text;
+  const mod = moderateText(text);
+  if (!mod.ok) return res.status(400).json({ error: mod.reason });
+  if (!comments[id]) comments[id] = [];
+  const comment = {
+    id: String(Date.now()),
+    userId: req.user.id,
+    userName: req.user.name,
+    text: text.trim(),
+    createdAt: new Date().toISOString(),
+  };
+  comments[id].push(comment);
+  saveComments();
+  res.json({ ok: true, comment });
+});
+
+// GET /perfumes/:id/comments - Yorumları listele (zaten /perfumes/:id içinde)
 
 // GET /perfumes/:id/similar - Benzer parfümler (accords overlap)
 app.get("/perfumes/:id/similar", (req, res) => {
@@ -798,7 +1205,11 @@ app.get("/perfumes/:id/similar", (req, res) => {
     (perfume.accords || []).map((a) => String(a).toLowerCase())
   );
   if (accords.size === 0) {
-    return res.json({ data: perfumes.filter((p) => p.id !== id).slice(0, limit) });
+    const data = perfumes
+      .filter((p) => String(p.id) !== String(id))
+      .slice(0, limit)
+      .map(enrichWithRating);
+    return res.json({ data });
   }
 
   const scored = perfumes
@@ -817,7 +1228,7 @@ app.get("/perfumes/:id/similar", (req, res) => {
     .filter((p) => p._score > 0)
     .sort((a, b) => b._score - a._score)
     .slice(0, limit)
-    .map(({ _score, ...rest }) => rest);
+    .map(({ _score, ...rest }) => enrichWithRating(rest));
 
   res.json({ data: scored });
 });

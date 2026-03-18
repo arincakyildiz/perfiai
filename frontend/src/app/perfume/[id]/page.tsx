@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PerfumeDetailContent } from "@/components/PerfumeDetailContent";
 import { apiUrl } from "@/lib/api";
 
@@ -14,6 +15,7 @@ type Perfume = {
   image_url?: string;
   accords?: string[];
   rating?: number;
+  user_rating_count?: number;
   gender?: string;
   season?: string[];
   year?: number;
@@ -52,6 +54,29 @@ async function fetchSimilar(id: string): Promise<Perfume[]> {
 type PerfumePageProps = {
   params: Promise<{ id: string }>;
 };
+
+export async function generateMetadata({
+  params,
+}: PerfumePageProps): Promise<Metadata> {
+  const { id } = await params;
+  try {
+    const p = await fetchPerfume(id);
+    const title = `${p.brand} ${p.name}`;
+    const desc =
+      p.short_description_tr || p.short_description || `${p.brand} ${p.name} parfüm detayları`;
+    return {
+      title,
+      description: desc.slice(0, 160),
+      openGraph: {
+        title,
+        description: desc.slice(0, 160),
+        images: p.image_url ? [{ url: p.image_url, alt: title }] : undefined,
+      },
+    };
+  } catch {
+    return { title: "Parfüm" };
+  }
+}
 
 export default async function PerfumePage({ params }: PerfumePageProps) {
   const { id } = await params;

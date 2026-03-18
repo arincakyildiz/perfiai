@@ -25,6 +25,7 @@ type ExploreContentProps = {
   currentBrand: string;
   currentGender: string;
   currentSeason: string;
+  currentSort: string;
   loadError?: boolean;
 };
 
@@ -33,6 +34,7 @@ function buildExploreUrl(params: {
   brand?: string;
   gender?: string;
   season?: string;
+  sort?: string;
   q?: string;
 }) {
   const sp = new URLSearchParams();
@@ -40,6 +42,7 @@ function buildExploreUrl(params: {
   if (params.brand) sp.set("brand", params.brand);
   if (params.gender) sp.set("gender", params.gender);
   if (params.season) sp.set("season", params.season);
+  if (params.sort && params.sort !== "rating") sp.set("sort", params.sort);
   if (params.q) sp.set("q", params.q);
   const s = sp.toString();
   return s ? `/explore?${s}` : "/explore";
@@ -54,10 +57,11 @@ export function ExploreContent({
   currentBrand,
   currentGender,
   currentSeason,
+  currentSort = "rating",
   loadError = false,
 }: ExploreContentProps) {
   const { t } = useLanguage();
-  const currentFilters = { brand: currentBrand, gender: currentGender, season: currentSeason };
+  const currentFilters = { brand: currentBrand, gender: currentGender, season: currentSeason, sort: currentSort };
 
   return (
     <main className="space-y-8">
@@ -86,6 +90,7 @@ export function ExploreContent({
           currentBrand={currentBrand}
           currentGender={currentGender}
           currentSeason={currentSeason}
+          currentSort={currentSort}
         />
       </Suspense>
 
