@@ -1,3 +1,5 @@
+import { PerfumeImage } from "@/components/PerfumeImage";
+
 type Perfume = {
   id: string;
   brand: string;
@@ -16,10 +18,9 @@ export function PerfumeCard({ perfume }: PerfumeCardProps) {
 
   return (
     <div className="group flex h-full flex-col overflow-hidden rounded-[1.4rem] border border-violet-200/50 bg-white shadow-[0_4px_24px_rgba(139,92,246,0.07)] transition-all duration-300 hover:-translate-y-1.5 hover:border-violet-400/60 hover:shadow-[0_16px_48px_rgba(139,92,246,0.15)] dark:border-violet-500/20 dark:bg-violet-950/15 dark:hover:border-violet-500/40 dark:hover:bg-violet-950/20 dark:hover:shadow-[0_0_40px_rgba(139,92,246,0.15)]">
-      <div className="relative aspect-[3/4] overflow-hidden">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={image_url || "/placeholder-perfume.png"}
+      <div className="relative aspect-[3/4] overflow-hidden bg-violet-50 dark:bg-zinc-900">
+        <PerfumeImage
+          src={image_url}
           alt={`${brand} ${name}`}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />

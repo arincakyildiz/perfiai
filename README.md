@@ -42,6 +42,19 @@ perfiai/
 
 ---
 
+## 🛍️ Sephora’dan eksik parfüm ekleme
+
+Sephora US’nin herkese açık katalog API’si ile **kadın / erkek / unisex** parfüm listeleri çekilir; `data/perfumes.json` içinde **marka + isim** ile zaten olanlar atlanır (hediye seti / numune gibi isimler filtrelenir).
+
+```bash
+node scripts/import_sephora_perfumes.mjs --dry-run   # sadece özet
+node scripts/import_sephora_perfumes.mjs             # perfumes.json’a yazar
+```
+
+Yeni kayıtlarda `image_url` Sephora CDN’den gelir; `sephoraProductId` ve `source: "sephora"` alanları eklenir. **Embedding** modu kullanıyorsan parfüm listesi büyüdükçe `perfume_embeddings_st.json` dosyasını yeniden üretmen gerekir.
+
+---
+
 ## 🚀 Hızlı Başlangıç (sadece backend, parasız)
 
 ```bash

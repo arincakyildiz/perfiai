@@ -7,6 +7,7 @@ import { AccordsChart } from "@/components/AccordsChart";
 import { CommentSection } from "@/components/CommentSection";
 import { RatingStars } from "@/components/RatingStars";
 import { VerifiedBanner } from "@/components/VerifiedBanner";
+import { PerfumeImage } from "@/components/PerfumeImage";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 type Notes = {
@@ -69,11 +70,10 @@ export function PerfumeDetailContent({ perfume, similar }: PerfumeDetailContentP
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:gap-12">
         <div className="mx-auto w-full max-w-md">
-          <div className="overflow-hidden rounded-3xl border-2 border-stone-200 bg-white shadow-lg dark:border-violet-950/40 dark:bg-violet-950/10 dark:shadow-[0_0_60px_rgba(212,165,116,0.05)]">
-            <div className="relative aspect-[3/4] overflow-hidden">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={perfume.image_url || "/placeholder-perfume.png"}
+          <div className="overflow-hidden rounded-3xl border-2 border-stone-200 bg-white shadow-lg dark:border-zinc-700 dark:bg-zinc-900 dark:shadow-[0_0_60px_rgba(212,165,116,0.05)]">
+            <div className="relative aspect-[3/4] overflow-hidden bg-violet-50 dark:bg-zinc-800">
+              <PerfumeImage
+                src={perfume.image_url}
                 alt={`${perfume.brand} ${perfume.name}`}
                 className="h-full w-full object-cover"
               />

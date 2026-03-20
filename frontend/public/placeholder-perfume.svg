@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="375" height="500" viewBox="0 0 375 500" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ede9fe"/>
+      <stop offset="50%" style="stop-color:#f5f3ff"/>
+      <stop offset="100%" style="stop-color:#fce7f3"/>
+    </linearGradient>
+    <linearGradient id="bottle" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#a78bfa;stop-opacity:0.35"/>
+      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:0.55"/>
+    </linearGradient>
+  </defs>
+  <rect width="375" height="500" fill="url(#bg)"/>
+  <ellipse cx="187" cy="420" rx="90" ry="14" fill="#c4b5fd" opacity="0.25"/>
+  <path d="M150 115h75c8 0 14 6 14 14v8c0 6-4 11-9 13l-6 2v240c0 16-13 29-29 29h-20c-16 0-29-13-29-29V152l-6-2c-5-2-9-7-9-13v-8c0-8 6-14 14-14z" fill="url(#bottle)" stroke="#8b5cf6" stroke-width="2" opacity="0.9"/>
+  <rect x="165" y="88" width="45" height="35" rx="6" fill="#ddd6fe" stroke="#8b5cf6" stroke-width="1.5"/>
+  <rect x="172" y="72" width="31" height="22" rx="4" fill="#c4b5fd" stroke="#7c3aed" stroke-width="1"/>
+  <path d="M130 200c40-30 75-30 115 0" stroke="#a78bfa" stroke-width="2" fill="none" opacity="0.6"/>
+  <text x="187" y="340" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" fill="#6d28d9" opacity="0.7">Perfiai</text>
+</svg>
