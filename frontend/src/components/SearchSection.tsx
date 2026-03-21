@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { FC, FormEvent } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { PerfumeCard } from "@/components/PerfumeCard";
+import { PerfumeCardFavoriteWrap } from "@/components/PerfumeCardFavoriteWrap";
 import { Dropdown } from "@/components/Dropdown";
 import { apiUrl } from "@/lib/api";
 
@@ -91,7 +90,7 @@ export const SearchSection: FC = () => {
           <button
             type="submit"
             disabled={isPending}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-violet-500 bg-gradient-to-r from-violet-600 to-pink-500 px-6 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:from-violet-500 hover:to-pink-400 disabled:opacity-60 dark:border-violet-500/40 dark:bg-violet-950/50 dark:text-violet-200 dark:shadow-[0_0_20px_rgba(139,92,246,0.2)] dark:hover:border-violet-500/50 dark:hover:bg-violet-950/70 dark:hover:text-violet-100 dark:hover:shadow-[0_0_30px_rgba(139,92,246,0.25)] sm:w-auto"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-violet-500 bg-gradient-to-r from-violet-600 to-pink-500 px-6 py-3.5 text-sm font-semibold text-white shadow-lg ring-2 ring-transparent transition-all duration-200 hover:-translate-y-0.5 hover:from-violet-500 hover:to-pink-400 hover:shadow-xl hover:shadow-violet-500/35 hover:ring-violet-200/60 active:translate-y-0 disabled:opacity-60 dark:border-violet-500/40 dark:shadow-[0_0_20px_rgba(139,92,246,0.2)] dark:hover:border-violet-500/60 dark:hover:shadow-[0_0_36px_rgba(139,92,246,0.35)] dark:hover:ring-violet-400/35 sm:w-auto"
           >
             {isPending ? t("home.searching") : t("home.searchButton")}
           </button>
@@ -142,12 +141,7 @@ export const SearchSection: FC = () => {
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {results.map((p) => (
               <div key={p.id} className="space-y-3">
-                <Link
-                  href={`/perfume/${p.id}`}
-                  className="block transition duration-300 hover:-translate-y-1"
-                >
-                  <PerfumeCard perfume={p} />
-                </Link>
+                <PerfumeCardFavoriteWrap perfume={p} />
                 {(p.tags?.length || p.reason) && (
                   <div className="space-y-1.5 text-xs text-zinc-500">
                     {p.tags && p.tags.length > 0 && (

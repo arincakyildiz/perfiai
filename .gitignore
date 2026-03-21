@@ -9,5 +9,13 @@ __pycache__/
 .env.local
 *.log
 
+# Yerel kullanıcı / oturum verisi (asla repoya gönderme)
+data/users.json
+data/verification_tokens.json
+data/login_codes.json
+
+# Editor
+.vscode/
+
 # OS
 .DS_Store

@@ -3,6 +3,10 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import {
+  authPrimaryCtaClassName,
+  authSecondaryCtaClassName,
+} from "@/lib/authUi";
 
 type AuthModalProps = {
   open: boolean;
@@ -11,7 +15,14 @@ type AuthModalProps = {
 };
 
 const inputClass =
-  "w-full rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-stone-900 shadow-sm outline-none transition placeholder:text-stone-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/25 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-violet-400 dark:focus:ring-violet-400/20";
+  "w-full rounded-xl border border-stone-300 bg-white px-4 py-2.5 text-stone-900 shadow-sm outline-none transition-all duration-200 placeholder:text-stone-400 hover:border-violet-300 hover:shadow-md focus:border-violet-500 focus:ring-2 focus:ring-violet-500/25 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:hover:border-violet-500/60 dark:focus:border-violet-400 dark:focus:ring-violet-400/20";
+
+const tabBase =
+  "flex-1 rounded-lg py-2.5 text-sm font-semibold transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-zinc-900";
+const tabActive =
+  "scale-[1.02] bg-white text-violet-800 shadow-md ring-1 ring-violet-200/90 dark:bg-zinc-700 dark:text-violet-200 dark:ring-violet-500/35";
+const tabInactive =
+  "text-stone-600 hover:scale-[1.02] hover:bg-white/80 hover:text-violet-700 hover:shadow-sm active:scale-[0.98] dark:text-zinc-400 dark:hover:bg-zinc-700/90 dark:hover:text-violet-200";
 
 export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProps) {
   const { t } = useLanguage();
@@ -27,6 +38,11 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [registerDone, setRegisterDone] = useState<{
+    message: string;
+    devUrl?: string;
+  } | null>(null);
+  const [devLoginCode, setDevLoginCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -37,16 +53,21 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
     setCode("");
     setEmailConfirm("");
     setAcceptTerms(false);
+    setRegisterDone(null);
+    setDevLoginCode(null);
   }, [open, initialTab]);
 
   async function handleSendCode(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setDevLoginCode(null);
     setLoading(true);
     const r = await sendLoginCode(email);
     setLoading(false);
-    if (r.ok) setStep("code");
-    else setError(r.error || "");
+    if (r.ok) {
+      setDevLoginCode(r.devLoginCode ?? null);
+      setStep("code");
+    } else setError(r.error || "");
   }
 
   async function handleVerifyCode(e: React.FormEvent) {
@@ -89,8 +110,12 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
     setLoading(true);
     const r = await register(email.trim(), name.trim());
     setLoading(false);
-    if (r.ok) onClose();
-    else setError(r.error || "");
+    if (r.ok) {
+      setRegisterDone({
+        message: r.message || "",
+        devUrl: r.devVerificationUrl,
+      });
+    } else setError(r.error || "");
   }
 
   function switchTab(newTab: "login" | "register") {
@@ -101,6 +126,8 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
     setCode("");
     setEmailConfirm("");
     setAcceptTerms(false);
+    setRegisterDone(null);
+    setDevLoginCode(null);
   }
 
   if (!open) return null;
@@ -108,38 +135,59 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 backdrop-blur-[2px]">
       <div
-        className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900"
+        className="w-full max-w-md rounded-2xl border border-stone-200 bg-white p-6 shadow-2xl transition-all duration-300 ease-out hover:shadow-[0_24px_64px_-12px_rgba(139,92,246,0.35)] dark:border-zinc-700 dark:bg-zinc-900 dark:hover:shadow-[0_24px_64px_-12px_rgba(139,92,246,0.22)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="auth-modal-title"
       >
-        <div className="mb-5 flex gap-2 rounded-xl bg-stone-100 p-1 dark:bg-zinc-800">
+        <div className="mb-5 flex gap-1.5 rounded-xl border border-stone-200/80 bg-stone-100/90 p-1.5 shadow-inner dark:border-zinc-700/80 dark:bg-zinc-800/90">
           <button
             type="button"
             onClick={() => switchTab("login")}
-            className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition ${
-              tab === "login"
-                ? "bg-white text-violet-800 shadow-sm dark:bg-zinc-700 dark:text-violet-200"
-                : "text-stone-600 hover:text-stone-900 dark:text-zinc-400 dark:hover:text-zinc-200"
-            }`}
+            className={`${tabBase} ${tab === "login" ? tabActive : tabInactive}`}
           >
             {t("auth.login")}
           </button>
           <button
             type="button"
             onClick={() => switchTab("register")}
-            className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition ${
-              tab === "register"
-                ? "bg-white text-violet-800 shadow-sm dark:bg-zinc-700 dark:text-violet-200"
-                : "text-stone-600 hover:text-stone-900 dark:text-zinc-400 dark:hover:text-zinc-200"
-            }`}
+            className={`${tabBase} ${tab === "register" ? tabActive : tabInactive}`}
           >
             {t("auth.register")}
           </button>
         </div>
 
         {tab === "register" ? (
-          registerStep === 1 ? (
+          registerDone ? (
+            <div className="space-y-4 text-center">
+              <h2 id="auth-modal-title" className="text-lg font-bold text-stone-900 dark:text-zinc-50">
+                {t("auth.registerCreate")} ✓
+              </h2>
+              <p className="whitespace-pre-line text-sm leading-relaxed text-stone-600 dark:text-zinc-300">
+                {registerDone.message}
+              </p>
+              {registerDone.devUrl ? (
+                <a
+                  href={registerDone.devUrl}
+                  className="inline-block text-sm font-semibold text-violet-600 underline-offset-2 transition hover:underline dark:text-violet-300"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {t("auth.openVerificationLink")}
+                </a>
+              ) : null}
+              <button
+                type="button"
+                className={`${authPrimaryCtaClassName} w-full`}
+                onClick={() => {
+                  setRegisterDone(null);
+                  onClose();
+                }}
+              >
+                {t("auth.registerDoneClose")}
+              </button>
+            </div>
+          ) : registerStep === 1 ? (
             <form onSubmit={handleRegisterStep1} className="space-y-4">
               <div>
                 <h2 id="auth-modal-title" className="text-lg font-bold text-stone-900 dark:text-zinc-50">
@@ -202,13 +250,13 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 rounded-xl border-2 border-stone-200 bg-stone-50 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-100 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
+                  className={authSecondaryCtaClassName}
                 >
                   {t("auth.cancel")}
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 rounded-xl bg-violet-600 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-violet-700 dark:bg-violet-500 dark:hover:bg-violet-600"
+                  className={`${authPrimaryCtaClassName} flex-1`}
                 >
                   {t("auth.registerContinue")}
                 </button>
@@ -242,7 +290,7 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
                   className={inputClass}
                 />
               </div>
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-zinc-600 dark:bg-zinc-800/50">
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-stone-200 bg-stone-50/80 p-3 transition-all duration-200 hover:border-violet-300 hover:bg-violet-50/50 hover:shadow-md dark:border-zinc-600 dark:bg-zinc-800/50 dark:hover:border-violet-500/40 dark:hover:bg-violet-950/30">
                 <input
                   type="checkbox"
                   checked={acceptTerms}
@@ -260,14 +308,14 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
                     setRegisterStep(1);
                     setError("");
                   }}
-                  className="flex-1 rounded-xl border-2 border-stone-200 bg-white py-2.5 text-sm font-semibold text-stone-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+                  className={authSecondaryCtaClassName}
                 >
                   {t("auth.registerBackEdit")}
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 rounded-xl bg-violet-600 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-violet-700 disabled:opacity-60 dark:bg-violet-500 dark:hover:bg-violet-600"
+                  className={`${authPrimaryCtaClassName} flex-1 disabled:hover:translate-y-0 disabled:hover:shadow-md`}
                 >
                   {loading ? "…" : t("auth.registerCreate")}
                 </button>
@@ -295,14 +343,14 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 rounded-xl border-2 border-stone-200 bg-stone-50 py-2.5 text-sm font-semibold text-stone-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+                className={authSecondaryCtaClassName}
               >
                 {t("auth.cancel")}
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 rounded-xl bg-violet-600 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-violet-700 disabled:opacity-60 dark:bg-violet-500"
+                className={`${authPrimaryCtaClassName} flex-1 disabled:hover:translate-y-0 disabled:hover:shadow-md`}
               >
                 {loading ? "…" : t("auth.sendCode")}
               </button>
@@ -313,6 +361,16 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
             <p className="text-sm text-stone-700 dark:text-zinc-300">
               {t("auth.codeSent")} <strong className="text-stone-900 dark:text-zinc-100">{email}</strong>
             </p>
+            {devLoginCode ? (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left dark:border-amber-900/50 dark:bg-amber-950/30">
+                <p className="text-xs font-medium text-amber-900 dark:text-amber-100">
+                  {t("auth.devLoginCodeHint")}
+                </p>
+                <p className="mt-2 font-mono text-2xl font-bold tracking-[0.35em] text-amber-950 dark:text-amber-50">
+                  {devLoginCode}
+                </p>
+              </div>
+            ) : null}
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-stone-600 dark:text-zinc-400">
                 {t("auth.code")}
@@ -327,7 +385,7 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
                 className={`${inputClass} text-center text-lg tracking-[0.5em]`}
               />
             </div>
-            <label className="flex cursor-pointer items-center gap-2 rounded-lg px-1 py-1">
+            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-transparent px-2 py-2 transition-all duration-200 hover:border-violet-200/80 hover:bg-violet-50/60 dark:hover:border-violet-500/30 dark:hover:bg-violet-950/25">
               <input
                 type="checkbox"
                 checked={remember}
@@ -344,15 +402,16 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
                   setStep("email");
                   setError("");
                   setCode("");
+                  setDevLoginCode(null);
                 }}
-                className="flex-1 rounded-xl border-2 border-stone-200 bg-stone-50 py-2.5 text-sm font-semibold text-stone-700 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+                className={authSecondaryCtaClassName}
               >
                 {t("auth.back")}
               </button>
               <button
                 type="submit"
                 disabled={loading || code.length !== 6}
-                className="flex-1 rounded-xl bg-violet-600 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-violet-700 disabled:opacity-60 dark:bg-violet-500"
+                className={`${authPrimaryCtaClassName} flex-1 disabled:hover:translate-y-0 disabled:hover:shadow-md`}
               >
                 {loading ? "…" : t("auth.login")}
               </button>

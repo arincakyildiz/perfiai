@@ -237,6 +237,136 @@ html {
 .animate-twinkle-delay-3 { animation-delay: 1.8s; }
 .animate-twinkle-delay-4 { animation-delay: 2.4s; }
 
+/* Compare studio */
+@keyframes compare-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.compare-rise {
+  animation: compare-rise 0.7s ease-out both;
+}
+
+.compare-rise-delay-1 {
+  animation-delay: 0.08s;
+}
+
+.compare-rise-delay-2 {
+  animation-delay: 0.16s;
+}
+
+@keyframes compare-float-slow {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: translate(12px, 8px) scale(1.05);
+    opacity: 0.5;
+  }
+}
+
+@keyframes compare-float-slow-reverse {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: translate(-10px, -6px) scale(1.04);
+    opacity: 0.45;
+  }
+}
+
+.compare-float-slow {
+  animation: compare-float-slow 14s ease-in-out infinite;
+}
+
+.compare-float-slow-reverse {
+  animation: compare-float-slow-reverse 18s ease-in-out infinite;
+}
+
+@keyframes compare-shimmer-sweep {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.compare-chip {
+  animation: compare-rise 0.55s ease-out both;
+}
+
+.compare-chip:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+.compare-chip:nth-child(3) {
+  animation-delay: 0.12s;
+}
+
+.compare-chip:nth-child(4) {
+  animation-delay: 0.18s;
+}
+
+.compare-chip:nth-child(5) {
+  animation-delay: 0.24s;
+}
+
+.compare-table-row {
+  animation: compare-rise 0.5s ease-out both;
+}
+
+@keyframes compare-cta-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(251, 191, 36, 0);
+  }
+}
+
+.compare-cta-pulse {
+  animation: compare-cta-pulse 2.2s ease-in-out infinite;
+}
+
+/* Site geneli: buton / link üzerindeyken daha net geri bildirim */
+@media (hover: hover) and (pointer: fine) {
+  button:not(:disabled):not(.no-interactive-hover):hover,
+  [role="button"]:not([aria-disabled="true"]):not(.no-interactive-hover):hover,
+  input[type="submit"]:not(:disabled):not(.no-interactive-hover):hover,
+  input[type="button"]:not(:disabled):not(.no-interactive-hover):hover,
+  summary:not(.no-interactive-hover):hover {
+    filter: brightness(1.09);
+  }
+
+  button:not(:disabled):not(.no-interactive-hover):active,
+  [role="button"]:not([aria-disabled="true"]):not(.no-interactive-hover):active,
+  input[type="submit"]:not(:disabled):not(.no-interactive-hover):active,
+  input[type="button"]:not(:disabled):not(.no-interactive-hover):active,
+  summary:not(.no-interactive-hover):active {
+    filter: brightness(0.9);
+  }
+
+  a[href]:not(.no-interactive-hover):hover {
+    filter: brightness(1.06);
+  }
+
+  a[href]:not(.no-interactive-hover):active {
+    filter: brightness(0.94);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

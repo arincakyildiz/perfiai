@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { PerfumeCard } from "@/components/PerfumeCard";
+import { PerfumeCardFavoriteWrap } from "@/components/PerfumeCardFavoriteWrap";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 type Perfume = {
@@ -57,13 +57,7 @@ export function BrandDetailContent({
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {perfumes.map((p) => (
-            <Link
-              key={p.id}
-              href={`/perfume/${p.id}`}
-              className="block transition duration-300 hover:-translate-y-1"
-            >
-              <PerfumeCard perfume={p} />
-            </Link>
+            <PerfumeCardFavoriteWrap key={p.id} perfume={p} />
           ))}
         </div>
       )}

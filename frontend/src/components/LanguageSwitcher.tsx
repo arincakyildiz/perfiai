@@ -13,10 +13,10 @@ export function LanguageSwitcher() {
           key={l}
           type="button"
           onClick={() => setLocale(l)}
-          className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+          className={`rounded-md px-3 py-1.5 text-xs font-medium ring-2 ring-transparent transition-all duration-200 ${
             locale === l
-              ? "bg-violet-500/40 text-violet-800 dark:bg-violet-500/30 dark:text-violet-200"
-              : "text-stone-600 hover:text-violet-700 dark:text-zinc-500 dark:hover:text-zinc-300"
+              ? "bg-violet-500/40 text-violet-800 shadow-sm dark:bg-violet-500/30 dark:text-violet-200"
+              : "text-stone-600 hover:bg-violet-200/70 hover:text-violet-900 hover:ring-violet-400/35 dark:text-zinc-500 dark:hover:bg-violet-950/50 dark:hover:text-violet-100 dark:hover:ring-violet-500/25"
           }`}
         >
           {l.toUpperCase()}

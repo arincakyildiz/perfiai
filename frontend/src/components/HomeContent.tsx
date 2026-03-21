@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { PerfumeCard } from "@/components/PerfumeCard";
+import { PerfumeCardFavoriteWrap } from "@/components/PerfumeCardFavoriteWrap";
 import { SearchSection } from "@/components/SearchSection";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -111,7 +111,7 @@ export function HomeContent({ perfumes }: HomeContentProps) {
             <Link
               key={s.slug}
               href={`/explore?season=${s.slug}`}
-              className="group relative overflow-hidden rounded-2xl border-2 border-violet-200/30 bg-white p-6 shadow-md transition-all duration-300 hover:-translate-y-1.5 hover:border-violet-400/50 hover:shadow-xl hover:shadow-violet-500/10 dark:border-violet-500/15 dark:bg-violet-950/10 dark:hover:border-violet-500/40 dark:hover:shadow-violet-500/15"
+              className="group relative overflow-hidden rounded-2xl border-2 border-violet-200/30 bg-white p-6 shadow-md ring-2 ring-transparent transition-all duration-300 hover:-translate-y-1.5 hover:border-violet-400/50 hover:shadow-xl hover:shadow-violet-500/10 hover:ring-violet-400/35 dark:border-violet-500/15 dark:bg-violet-950/10 dark:hover:border-violet-500/40 dark:hover:shadow-violet-500/15 dark:hover:ring-violet-400/25"
               style={{ animationDelay: `${i * 100}ms` }}
             >
               <div className={`absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br ${s.gradient} opacity-10 transition duration-500 group-hover:scale-150 group-hover:opacity-20`} />
@@ -151,7 +151,7 @@ export function HomeContent({ perfumes }: HomeContentProps) {
           </div>
           <Link
             href="/brands"
-            className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-pink-500 px-6 py-3.5 text-center font-bold text-white shadow-lg transition-all duration-300 hover:shadow-xl hover:shadow-violet-500/25 hover:brightness-110 sm:w-auto sm:px-8 sm:py-4"
+            className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-pink-500 px-6 py-3.5 text-center font-bold text-white shadow-lg ring-2 ring-transparent transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-violet-500/35 hover:ring-violet-200/50 active:translate-y-0 sm:w-auto sm:px-8 sm:py-4"
           >
             {t("home.exploreBrands")}
             <span className="text-xl transition duration-300 group-hover:translate-x-1">→</span>
@@ -172,7 +172,7 @@ export function HomeContent({ perfumes }: HomeContentProps) {
             <Link
               key={st.q}
               href={`/explore?q=${encodeURIComponent(st.q)}`}
-              className="group flex items-center gap-2 rounded-full border-2 border-violet-200/30 bg-white px-5 py-3 text-sm font-semibold text-stone-700 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-400/50 hover:bg-violet-50 hover:text-violet-800 hover:shadow-md hover:shadow-violet-500/10 dark:border-violet-500/15 dark:bg-violet-950/10 dark:text-zinc-300 dark:hover:border-violet-500/40 dark:hover:bg-violet-950/20 dark:hover:text-violet-100"
+              className="group flex items-center gap-2 rounded-full border-2 border-violet-200/30 bg-white px-5 py-3 text-sm font-semibold text-stone-700 shadow-sm ring-2 ring-transparent transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-400/50 hover:bg-violet-50 hover:text-violet-800 hover:shadow-md hover:shadow-violet-500/10 hover:ring-violet-300/40 dark:border-violet-500/15 dark:bg-violet-950/10 dark:text-zinc-300 dark:hover:border-violet-500/40 dark:hover:bg-violet-950/20 dark:hover:text-violet-100 dark:hover:ring-violet-500/25"
             >
               <span className="transition duration-300 group-hover:scale-110">{st.emoji}</span>
               {t(`scentTypes.${st.q}`)}
@@ -192,7 +192,7 @@ export function HomeContent({ perfumes }: HomeContentProps) {
           </div>
           <Link
             href="/explore"
-            className="group flex w-full items-center justify-center gap-2 rounded-xl border-2 border-violet-500 px-5 py-2.5 text-sm font-bold text-violet-700 transition-all duration-300 hover:bg-gradient-to-r hover:from-violet-600 hover:to-pink-500 hover:text-white hover:shadow-lg hover:shadow-violet-500/20 dark:border-violet-500 dark:text-violet-200 dark:hover:text-white sm:w-auto"
+            className="group flex w-full items-center justify-center gap-2 rounded-xl border-2 border-violet-500 px-5 py-2.5 text-sm font-bold text-violet-700 ring-2 ring-transparent transition-all duration-300 hover:-translate-y-0.5 hover:bg-gradient-to-r hover:from-violet-600 hover:to-pink-500 hover:text-white hover:shadow-lg hover:shadow-violet-500/20 hover:ring-violet-300/50 dark:border-violet-500 dark:text-violet-200 dark:hover:text-white sm:w-auto"
           >
             {t("home.seeAll")}
             <span className="text-lg transition duration-300 group-hover:translate-x-1">→</span>
@@ -206,13 +206,11 @@ export function HomeContent({ perfumes }: HomeContentProps) {
         ) : (
           <div className="grid gap-7 sm:grid-cols-2 lg:grid-cols-4">
             {perfumes.map((p) => (
-              <Link
+              <PerfumeCardFavoriteWrap
                 key={p.id}
-                href={`/perfume/${p.id}`}
-                className="group block transition duration-300 hover:-translate-y-2"
-              >
-                <PerfumeCard perfume={p} />
-              </Link>
+                perfume={p}
+                linkClassName="block h-full rounded-[1.4rem] outline-none ring-2 ring-transparent transition-all duration-300 hover:-translate-y-2 hover:ring-violet-400/45 focus-visible:ring-violet-500/60 dark:hover:ring-violet-400/35"
+              />
             ))}
           </div>
         )}

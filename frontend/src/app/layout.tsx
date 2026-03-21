@@ -3,10 +3,12 @@ import { cookies } from "next/headers";
 import { Inter } from "next/font/google";
 import type { Locale } from "@/lib/translations";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { FavoritesProvider } from "@/contexts/FavoritesContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { AiHelpAssistant } from "@/components/AiHelpAssistant";
 import { AnimatedBackground } from "@/components/AnimatedBackground";
 import "./globals.css";
 
@@ -57,12 +59,15 @@ export default async function RootLayout({
         <ThemeProvider initialTheme={theme}>
           <AuthProvider>
             <LanguageProvider initialLocale={locale}>
-            <AnimatedBackground />
-            <div className="relative z-10 mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-              <Navbar />
-              <main className="flex-1">{children}</main>
-              <Footer />
-            </div>
+              <FavoritesProvider>
+                <AnimatedBackground />
+                <div className="relative z-10 mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+                  <Navbar />
+                  <main className="flex-1">{children}</main>
+                  <Footer />
+                </div>
+                <AiHelpAssistant />
+              </FavoritesProvider>
             </LanguageProvider>
           </AuthProvider>
         </ThemeProvider>

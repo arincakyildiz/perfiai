@@ -1,22 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import type { MouseEvent } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useFavorites } from "@/contexts/FavoritesContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { AuthModal } from "./AuthModal";
+import { authPrimaryCtaClassName } from "@/lib/authUi";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 
 export function Navbar() {
   const { t } = useLanguage();
   const { user, logout } = useAuth();
+  const { count: favoriteCount } = useFavorites();
   const [authOpen, setAuthOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    function openAuth() {
+      setAuthOpen(true);
+    }
+    window.addEventListener("perfiai:open-auth", openAuth);
+    return () => window.removeEventListener("perfiai:open-auth", openAuth);
+  }, []);
 
   function handleNavClick(event: MouseEvent<HTMLAnchorElement>, href: string) {
     if (
@@ -50,7 +61,7 @@ export function Navbar() {
     <header className="glass sticky top-3 z-30 mb-8 flex flex-col gap-4 rounded-3xl border border-violet-200/50 bg-white/75 px-4 py-4 shadow-[0_16px_50px_rgba(139,92,246,0.08)] dark:border-violet-500/20 dark:bg-[#120f18]/70 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:mb-10 sm:flex-row sm:items-center sm:justify-between sm:px-5">
       <Link
         href="/"
-        className="group flex min-w-0 items-center gap-3 transition opacity-90 hover:opacity-100"
+        className="no-interactive-hover group flex min-w-0 items-center gap-3 rounded-2xl transition-opacity duration-200 opacity-90 hover:opacity-100"
       >
         <div className="relative h-11 w-11 overflow-hidden rounded-2xl border border-violet-200/50 bg-white/70 p-1 transition duration-300 group-hover:shadow-[0_0_24px_rgba(139,92,246,0.3)] dark:border-violet-500/20 dark:bg-violet-950/20">
           <Image
@@ -73,24 +84,37 @@ export function Navbar() {
 
       <nav className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
         <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-violet-200/40 bg-violet-50/60 p-1 dark:border-violet-500/15 dark:bg-violet-950/15">
-          {([
-            { href: "/", label: t("nav.home") },
-            { href: "/explore", label: t("nav.explore") },
-            { href: "/brands", label: t("nav.brands") },
-          ] as { href: string; label: string }[]).map(({ href, label }) => {
+          {(
+            [
+              { href: "/", label: t("nav.home") },
+              { href: "/explore", label: t("nav.explore") },
+              { href: "/brands", label: t("nav.brands") },
+              { href: "/compare", label: t("nav.compare") },
+              {
+                href: "/favorites",
+                label: t("nav.favorites"),
+                badge: user ? favoriteCount : 0,
+              },
+            ] as { href: string; label: string; badge?: number }[]
+          ).map(({ href, label, badge }) => {
             const isActive = pathname === href || (href !== "/" && pathname.startsWith(href));
             return (
               <Link
                 key={href}
                 href={href}
                 onClick={(event) => handleNavClick(event, href)}
-                className={`flex-1 rounded-xl px-3 py-2 text-center text-sm font-medium transition-all duration-200 sm:flex-none sm:px-4 ${
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-center text-sm font-medium ring-2 ring-transparent transition-all duration-200 sm:flex-none sm:px-4 ${
                   isActive
                     ? "bg-white text-violet-800 shadow-sm dark:bg-violet-500/15 dark:text-violet-200 dark:shadow-[inset_0_0_0_1px_rgba(139,92,246,0.2)]"
-                    : "text-stone-500 hover:bg-white/70 hover:text-violet-700 hover:shadow-sm dark:text-zinc-400 dark:hover:bg-violet-500/10 dark:hover:text-violet-300"
+                    : "text-stone-500 hover:bg-white/80 hover:text-violet-800 hover:shadow-md hover:ring-violet-300/40 dark:text-zinc-400 dark:hover:bg-violet-500/20 dark:hover:text-violet-200 dark:hover:ring-violet-500/30"
                 }`}
               >
-                {label}
+                <span>{label}</span>
+                {typeof badge === "number" && user && badge > 0 ? (
+                  <span className="min-w-[1.25rem] rounded-full bg-pink-500 px-1 text-center text-[10px] font-bold leading-5 text-white">
+                    {badge > 99 ? "99+" : badge}
+                  </span>
+                ) : null}
               </Link>
             );
           })}
@@ -104,7 +128,7 @@ export function Navbar() {
               <button
                 type="button"
                 onClick={logout}
-                className="rounded-xl px-3 py-2 text-sm font-medium text-stone-500 transition hover:bg-violet-50 hover:text-violet-700 dark:text-zinc-400 dark:hover:bg-violet-500/10 dark:hover:text-violet-300"
+                className="rounded-xl px-3 py-2 text-sm font-medium text-stone-500 ring-2 ring-transparent transition-all duration-200 hover:bg-violet-100/90 hover:text-violet-800 hover:ring-violet-300/50 dark:text-zinc-400 dark:hover:bg-violet-500/20 dark:hover:text-violet-200 dark:hover:ring-violet-500/35"
               >
                 {t("auth.logout")}
               </button>
@@ -113,7 +137,7 @@ export function Navbar() {
             <button
               type="button"
               onClick={() => setAuthOpen(true)}
-              className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700 dark:bg-violet-500 dark:hover:bg-violet-600"
+              className={authPrimaryCtaClassName}
             >
               {t("auth.login")}
             </button>

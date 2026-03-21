@@ -1,0 +1,2 @@
+# Parfüm embedding üretimi: python scripts/generate_sentence_embeddings.py
+sentence-transformers>=3.0.0

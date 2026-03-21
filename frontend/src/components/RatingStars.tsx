@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { apiUrl } from "@/lib/api";
+import { authPrimaryCtaClassName } from "@/lib/authUi";
 import { AuthModal } from "./AuthModal";
 
 type RatingStarsProps = {
@@ -107,7 +108,7 @@ export function RatingStars({
         <button
           type="button"
           onClick={() => setAuthOpen(true)}
-          className="text-sm font-medium text-violet-600 hover:underline dark:text-violet-400"
+          className={`${authPrimaryCtaClassName} mt-2 w-full sm:w-auto`}
         >
           {t("auth.login")}
         </button>

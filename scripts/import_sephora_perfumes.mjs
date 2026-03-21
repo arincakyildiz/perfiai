@@ -1,15 +1,16 @@
 /**
- * Sephora US katalog API'sinden parfüm çeker; data/perfumes.json ile
- * çakışmayanları ekler (marka + isim eşleştirmesi).
+ * Sephora US katalog API — parfümleri data/perfumes.json ile birleştirir.
  *
- * Kullanım (repo kökünden):
- *   node scripts/import_sephora_perfumes.mjs
+ * Kullanım:
  *   node scripts/import_sephora_perfumes.mjs --dry-run
+ *   node scripts/import_sephora_perfumes.mjs
+ *   node scripts/import_sephora_perfumes.mjs --include-gift-sets
  *
- * Notlar:
- * - Kadın / erkek / unisex kategorileri ayrı çekilir (cinsiyet için).
- * - Hediye seti / numune seti gibi isimler filtrelenir.
- * - Sephora görselleri doğrudan kullanılır (CDN).
+ * Mantık:
+ * - Ana liste: "Fragrance" üst kategorisi (cat160006) — Sephora’daki tüm parfüm vitrini (~1827).
+ * - Cinsiyet: Kadın / Erkek / Unisex alt kategorilerinden productId eşlemesi (yoksa unisex).
+ * - Görseller: listelemedeki heroImage → Sephora CDN (imwidth=497).
+ * - Notlar / accord detayı: liste API’sinde yok; ürün sayfası API’si ağır olduğu için şimdilik şema doldurulur.
  */
 
 import { readFileSync, writeFileSync } from "fs";
@@ -20,6 +21,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA = join(__dirname, "../data/perfumes.json");
 
 const DRY = process.argv.includes("--dry-run");
+const INCLUDE_GIFT_SETS = process.argv.includes("--include-gift-sets");
+
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
@@ -33,12 +36,15 @@ function sephoraHeaders() {
   };
 }
 
-/** @type {{ id: string; gender: string }[]} */
-const CATEGORIES = [
+/** Cinsiyet ipucu için alt kategoriler (ana liste bunların üst kümesi olabilir) */
+const GENDER_CATEGORIES = [
   { id: "cat1230039", gender: "female" },
   { id: "cat1230040", gender: "male" },
   { id: "cat5000004", gender: "unisex" },
 ];
+
+/** Tüm parfüm / koku vitrini (mum ve hediye setleri de dahil olabilir) */
+const PARENT_FRAGRANCE = "cat160006";
 
 const SKIP_NAME =
   /\b(gift\s*set|sampler|discovery\s*set|vault|holiday\s*set|value\s*set|travel\s*set|coffret|duo\s*set|trio\s*set|starter\s*kit)\b/i;
@@ -53,7 +59,6 @@ function norm(s) {
     .trim();
 }
 
-/** İsimden EDT/EDP vb. kırparak çekirdek eşleştirme */
 function simplify(n) {
   let x = norm(n);
   x = x.replace(
@@ -73,7 +78,6 @@ function maxNumericId(perfumes) {
   return m;
 }
 
-/** Marka → { full, simp }[] mevcut parfümler (çakışma kontrolü) */
 function buildBrandIndex(perfumes) {
   /** @type {Map<string, { full: string; simp: string }[]>} */
   const byBrand = new Map();
@@ -136,9 +140,14 @@ async function fetchAllInCategory(categoryId) {
   return out;
 }
 
+/** Sephora zoom görsel — daha büyük küçük resim */
 function heroToLarge(url) {
   if (!url || typeof url !== "string") return "";
-  return url.replace(/imwidth=\d+/, "imwidth=375");
+  let u = url.replace(/imwidth=\d+/, "imwidth=497");
+  if (!u.includes("imwidth=")) {
+    u += (u.includes("?") ? "&" : "?") + "imwidth=497";
+  }
+  return u;
 }
 
 function toPerfumeRecord(p, gender, idStr) {
@@ -146,9 +155,18 @@ function toPerfumeRecord(p, gender, idStr) {
   const name = (p.displayName || "Unnamed").trim();
   const rating = parseFloat(p.rating) || 3.5;
   const image_url = heroToLarge(p.heroImage || p.altImage || "");
+  const sku = p.currentSku || {};
+  const skuId = sku.skuId ? String(sku.skuId) : undefined;
+  const listPrice = typeof sku.listPrice === "string" ? sku.listPrice : undefined;
+  const reviewCount = parseInt(String(p.reviews || "0"), 10) || 0;
   const year = new Date().getFullYear();
-  const short_description = `${name} by ${brand}. Listed on Sephora (US).`;
-  const short_description_tr = `${brand} — ${name}. Sephora ABD kataloğundan eklenmiştir.`;
+
+  let short_description = `${name} by ${brand}. Sephora US listing.`;
+  if (reviewCount) short_description += ` ${reviewCount} reviews.`;
+  if (listPrice) short_description += ` ${listPrice}.`;
+
+  let short_description_tr = `${brand} — ${name}. Sephora ABD kataloğundan.`;
+  if (reviewCount) short_description_tr += ` ${reviewCount} değerlendirme.`;
 
   return {
     id: idStr,
@@ -166,44 +184,57 @@ function toPerfumeRecord(p, gender, idStr) {
     image_url,
     short_description_tr,
     sephoraProductId: p.productId || undefined,
+    sephoraSkuId: skuId,
+    sephoraReviewCount: reviewCount,
+    sephoraListPrice: listPrice,
     source: "sephora",
   };
 }
 
+async function buildGenderByProductId() {
+  /** @type {Map<string, string>} */
+  const map = new Map();
+  for (const { id: catId, gender } of GENDER_CATEGORIES) {
+    console.log(`Cinsiyet haritası: ${catId} (${gender})…`);
+    const list = await fetchAllInCategory(catId);
+    for (const product of list) {
+      const pid = product.productId;
+      if (!pid) continue;
+      const prev = map.get(pid);
+      if (!prev) map.set(pid, gender);
+      else if (prev !== gender) map.set(pid, "unisex");
+    }
+    await sleep(400);
+  }
+  console.log(`  → ${map.size} ürün için cinsiyet ipucu`);
+  return map;
+}
+
 async function main() {
-  console.log("Sephora import başlıyor… (dry-run:", DRY + ")");
+  console.log("Sephora import başlıyor…");
+  console.log("  dry-run:", DRY);
+  console.log("  include-gift-sets:", INCLUDE_GIFT_SETS);
 
   const perfumes = JSON.parse(readFileSync(DATA, "utf-8"));
   const byBrand = buildBrandIndex(perfumes);
   let nextId = maxNumericId(perfumes) + 1;
 
-  /** @type {Map<string, { product: any; gender: string }>} */
-  const byPid = new Map();
+  const genderByPid = await buildGenderByProductId();
 
-  for (const { id: catId, gender } of CATEGORIES) {
-    console.log(`Kategori ${catId} (${gender}) çekiliyor…`);
-    const list = await fetchAllInCategory(catId);
-    console.log(`  → ${list.length} ürün`);
-    for (const product of list) {
-      const pid = product.productId;
-      if (!pid) continue;
-      const prev = byPid.get(pid);
-      if (!prev) {
-        byPid.set(pid, { product, gender });
-      } else if (prev.gender !== gender) {
-        prev.gender = "unisex";
-      }
-    }
-    await sleep(500);
-  }
+  console.log(`Ana kategori ${PARENT_FRAGRANCE} (tüm vitrin) çekiliyor…`);
+  const masterList = await fetchAllInCategory(PARENT_FRAGRANCE);
+  console.log(`  → ${masterList.length} satır`);
 
   const added = [];
   let skippedDup = 0;
   let skippedFilter = 0;
 
-  for (const { product, gender } of byPid.values()) {
+  for (const product of masterList) {
+    const pid = product.productId;
+    if (!pid) continue;
     const dn = product.displayName || "";
-    if (SKIP_NAME.test(dn) || SKIP_NAME_CANDLE.test(dn)) {
+
+    if (!INCLUDE_GIFT_SETS && (SKIP_NAME.test(dn) || SKIP_NAME_CANDLE.test(dn))) {
       skippedFilter++;
       continue;
     }
@@ -211,15 +242,17 @@ async function main() {
       skippedDup++;
       continue;
     }
+
+    const gender = genderByPid.get(pid) || "unisex";
     const rec = toPerfumeRecord(product, gender, String(nextId++));
     added.push(rec);
     registerNew(byBrand, product.brandName, dn);
   }
 
   console.log("\nÖzet:");
-  console.log("  Benzersiz Sephora ürünü (3 kategori birleşik):", byPid.size);
-  console.log("  Filtrelenen (set/mum vb.):", skippedFilter);
-  console.log("  Zaten veritabanında (eşleşen):", skippedDup);
+  console.log("  Sephora ana vitrin satırı:", masterList.length);
+  console.log("  Filtrelenen (set/mum; --include-gift-sets ile kapatılır):", skippedFilter);
+  console.log("  Veritabanında zaten var (marka+isim):", skippedDup);
   console.log("  Eklenecek yeni:", added.length);
 
   if (!DRY && added.length > 0) {
@@ -228,9 +261,9 @@ async function main() {
     console.log("perfumes.json güncellendi. Toplam kayıt:", merged.length);
   } else if (DRY) {
     console.log("(dry-run: dosya yazılmadı)");
-    if (added.length) console.log("Örnek:", added[0].brand, "—", added[0].name);
+    if (added[0]) console.log("Örnek:", added[0].brand, "—", added[0].name, "|", added[0].image_url?.slice(0, 70));
   } else {
-    console.log("Eklenecek kayıt yok.");
+    console.log("Eklenecek yeni yok.");
   }
 }
 

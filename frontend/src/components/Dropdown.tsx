@@ -111,7 +111,7 @@ export function Dropdown({
         className={`flex w-full items-center justify-between gap-2 rounded-xl border px-4 py-3 text-sm shadow-sm transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-violet-500/15 ${
           open
             ? "border-violet-500 bg-white ring-4 ring-violet-500/15 dark:border-violet-400 dark:bg-violet-950/40"
-            : "border-violet-200/50 bg-white hover:border-violet-400/60 hover:bg-violet-50/40 dark:border-violet-500/20 dark:bg-violet-950/20 dark:hover:border-violet-500/40 dark:hover:bg-violet-950/30"
+            : "border-violet-200/50 bg-white hover:border-violet-400 hover:bg-violet-50/70 hover:shadow-md hover:ring-2 hover:ring-violet-300/35 dark:border-violet-500/20 dark:bg-violet-950/20 dark:hover:border-violet-400 dark:hover:bg-violet-950/45 dark:hover:ring-violet-500/25"
         } ${value ? "text-stone-800 dark:text-zinc-100" : "text-stone-400 dark:text-zinc-500"}`}
       >
         <span className="truncate">{selected?.label ?? placeholder}</span>
@@ -195,10 +195,10 @@ export function Dropdown({
                     aria-selected={isSelected}
                     data-label={opt.label}
                     onClick={() => select(opt.value)}
-                    className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition-colors duration-100 ${
+                    className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition-all duration-150 ${
                       isSelected
                         ? "bg-violet-600 font-semibold text-white"
-                        : "text-stone-700 hover:bg-violet-50 dark:text-zinc-200 dark:hover:bg-violet-500/10"
+                        : "text-stone-700 hover:bg-violet-100 dark:text-zinc-200 dark:hover:bg-violet-500/20"
                     }`}
                   >
                     <span className="truncate">{opt.label}</span>

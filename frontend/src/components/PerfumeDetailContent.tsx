@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { PerfumeCard } from "@/components/PerfumeCard";
+import { FavoriteButton } from "@/components/FavoriteButton";
+import { PerfumeCardFavoriteWrap } from "@/components/PerfumeCardFavoriteWrap";
 import { AccordsChart } from "@/components/AccordsChart";
 import { CommentSection } from "@/components/CommentSection";
 import { RatingStars } from "@/components/RatingStars";
@@ -88,7 +89,8 @@ export function PerfumeDetailContent({ perfume, similar }: PerfumeDetailContentP
         </div>
 
         <div className="space-y-6 sm:space-y-8">
-          <div className="space-y-2">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-2">
             <p className="text-xs font-medium uppercase tracking-[0.2em] text-stone-500 dark:text-zinc-500">
               {perfume.brand}
             </p>
@@ -111,6 +113,10 @@ export function PerfumeDetailContent({ perfume, similar }: PerfumeDetailContentP
                   {perfume.year}
                 </span>
               )}
+            </div>
+            </div>
+            <div className="shrink-0 self-start sm:pt-1">
+              <FavoriteButton perfumeId={perfume.id} size="lg" />
             </div>
           </div>
 
@@ -201,13 +207,7 @@ export function PerfumeDetailContent({ perfume, similar }: PerfumeDetailContentP
           </h2>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {similar.map((p) => (
-              <Link
-                key={p.id}
-                href={`/perfume/${p.id}`}
-                className="block transition duration-300 hover:-translate-y-1"
-              >
-                <PerfumeCard perfume={p} />
-              </Link>
+              <PerfumeCardFavoriteWrap key={p.id} perfume={p} />
             ))}
           </div>
         </section>

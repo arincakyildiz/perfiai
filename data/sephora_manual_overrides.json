@@ -1,0 +1,152 @@
+{
+  "_comment": "Sephora SKU -> notes/accords/year; sadece { year } olan kayitlar piramidi degistirmez (merge sonrasi enrichmentSource ayni kalir). Calistir: node scripts/merge_sephora_overrides.mjs",
+  "P504364": {
+    "year": 2017,
+    "accords": ["musky", "powdery", "amber", "fresh spicy"],
+    "notes": {
+      "top": ["Pink pepper"],
+      "middle": ["Iris root"],
+      "base": ["Ambrette seeds", "Ambrox", "Musk"]
+    },
+    "short_description": "Glossier You — skin-enhancing musk scent. Top: pink pepper; heart: iris root; base: ambrette, ambrox and musk. Wears close to the skin."
+  },
+  "P508143": {
+    "year": 2023,
+    "accords": ["floral", "woody", "musky", "warm spicy"],
+    "notes": {
+      "top": ["Star anise", "Freesia"],
+      "middle": ["Cashmere flower", "Sandalwood"],
+      "base": ["Musk", "Tonka bean"]
+    },
+    "short_description": "Juliette Has a Gun Ode to Dullness — floral musky woody. Top: star anise, freesia; heart: cashmere flower, sandalwood; base: musks, tonka bean."
+  },
+  "P507947": {
+    "year": 2023,
+    "accords": ["fruity", "floral", "sweet", "woody"],
+    "notes": {
+      "top": ["Dragon fruit (pitaya)", "Sweet orange", "Fruit gummies accord"],
+      "middle": ["Orange flower", "Jasmine sambac", "Marigold"],
+      "base": ["Patchouli", "Sheer musks", "Amber"]
+    },
+    "short_description": "PHLUR Mood Ring — playful fruity-floral. Top: pitaya, sweet orange, gourmand fruit; heart: orange flower, jasmine, marigold; base: patchouli, musks, amber."
+  },
+  "P511605": {
+    "year": 2020,
+    "accords": ["citrus", "fruity", "sweet", "amber"],
+    "notes": {
+      "top": ["Bergamot", "Fresh dew accord"],
+      "middle": ["Floral notes", "Blackcurrant (cassis)"],
+      "base": ["Vanilla", "Amber"]
+    },
+    "short_description": "DedCool 01 Taunt — creamy citrus-vanilla. Top: bergamot, dewy freshness; heart: floral, cassis; base: vanilla, amber."
+  },
+  "P518577": {
+    "year": 2025,
+    "accords": ["fresh", "fruity", "warm spicy", "sweet"],
+    "notes": {
+      "top": ["Frozen mango", "Spearmint"],
+      "middle": ["Eucalyptus", "Cardamom"],
+      "base": ["Tonka bean", "Amber"]
+    },
+    "short_description": "Commodity Ice(d)+ Bold — icy mango and mint with warm depth. Top: frozen mango, spearmint; heart: eucalyptus, cardamom; base: tonka, amber."
+  },
+  "P518575": {
+    "year": 2025,
+    "accords": ["aquatic", "fruity", "fresh", "musky"],
+    "notes": {
+      "top": ["Frozen mango", "Spearmint"],
+      "middle": ["Eucalyptus", "Seaweed"],
+      "base": ["Skin musk", "Sandalwood"]
+    },
+    "short_description": "Commodity Ice(d)- Personal — sheer aquatic skin scent. Top: frozen mango, spearmint; heart: eucalyptus, seaweed; base: skin musk, sandalwood."
+  },
+  "P463959": {
+    "year": 2020,
+    "accords": ["gourmand", "sweet", "vanilla", "amber"],
+    "notes": {
+      "top": ["Caramelized vanilla", "Sea salt"],
+      "middle": ["Toasted macadamia", "White chocolate"],
+      "base": ["Tonka bean", "Coconut blossom"]
+    },
+    "short_description": "Sol de Janeiro Cheirosa 71 — warm amber gourmand. Top: caramelized vanilla, sea salt; heart: toasted macadamia, white chocolate; base: tonka, coconut blossom."
+  },
+  "P513541": {
+    "year": 2024,
+    "accords": ["citrus", "woody", "sweet", "floral"],
+    "notes": {
+      "top": ["Italian bergamot", "Lotus flower"],
+      "middle": ["Jasmine petals", "Tea leaves", "Vetiver"],
+      "base": ["Tonka bean", "Cashmere woods", "Cotton candy"]
+    },
+    "short_description": "Ariana Grande LOVENOTES Pink Woods — airy citrus woods. Top: bergamot, lotus; heart: jasmine, tea, vetiver; base: tonka, cashmere woods, cotton candy."
+  },
+  "P511240": {
+    "year": 2024,
+    "accords": ["aquatic", "floral", "citrus", "fresh"],
+    "notes": {
+      "top": ["Bergamot", "Neroli", "Lavandin"],
+      "middle": ["Orange flower absolute", "Watery accord"],
+      "base": ["Tonka bean accord", "White musk", "Orris concrete"]
+    },
+    "short_description": "Charlotte Tilbury Calm Bliss — tranquil aquatic floral. Top: bergamot, neroli, lavandin; heart: orange flower, watery accord; base: tonka, white musks, orris."
+  },
+  "P520173": {
+    "year": 2023,
+    "accords": ["gourmand", "warm spicy", "sweet", "woody"],
+    "notes": {
+      "top": ["Cinnamon", "Nutmeg", "Rum"],
+      "middle": ["Banana bread accord", "Caramel"],
+      "base": ["Tonka bean absolute", "Cypriol", "Orcanox"]
+    },
+    "short_description": "BORNTOSTANDOUT Nanatopia — spicy gourmand banana. Top: cinnamon, nutmeg, rum; heart: banana bread, caramel; base: tonka, cypriol, Orcanox."
+  },
+  "P417312": { "year": 2023 },
+  "P520246": { "year": 2024 },
+  "P517266": { "year": 2023 },
+  "P516308": { "year": 2023 },
+  "P520266": { "year": 2024 },
+  "P518274": { "year": 2023 },
+  "P520257": { "year": 2024 },
+  "P520663": { "year": 2024 },
+  "P517731": { "year": 2024 },
+  "P520233": { "year": 2024 },
+  "P521444": { "year": 2023 },
+  "P509513": { "year": 2024 },
+  "P519522": { "year": 2023 },
+  "P96811": { "year": 2015 },
+  "P515710": { "year": 2021 },
+  "P518292": { "year": 2024 },
+  "P508460": { "year": 2023 },
+  "P509678": { "year": 2024 },
+  "P511216": { "year": 2018 },
+  "P515737": { "year": 2021 },
+  "P500062": { "year": 2017 },
+  "P513258": { "year": 2024 },
+  "P511137": { "year": 2019 },
+  "P511551": { "year": 2024 },
+  "P501326": { "year": 2022 },
+  "P506951": { "year": 2022 },
+  "P517218": { "year": 2024 },
+  "P514672": { "year": 2024 },
+  "P517167": { "year": 2023 },
+  "P520188": { "year": 2024 },
+  "P501257": { "year": 2020 },
+  "P508614": { "year": 2023 },
+  "P509328": { "year": 2021 },
+  "P520413": { "year": 2024 },
+  "P520078": { "year": 2023 },
+  "P514819": { "year": 2024 },
+  "P509531": { "year": 2024 },
+  "P521385": { "year": 2024 },
+  "P511301": { "year": 2022 },
+  "P521524": { "year": 2024 },
+  "P511755": { "year": 2024 },
+  "P511302": { "year": 2022 },
+  "P520410": { "year": 2024 },
+  "P512873": { "year": 2025 },
+  "P522201": { "year": 2024 },
+  "P513656": { "year": 2024 },
+  "P380550": { "year": 2012 },
+  "P511391": { "year": 2024 },
+  "P516473": { "year": 2024 }
+}

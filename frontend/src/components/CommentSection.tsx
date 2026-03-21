@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { apiUrl } from "@/lib/api";
+import { authPrimaryCtaClassName } from "@/lib/authUi";
 import { AuthModal } from "./AuthModal";
 
 type Comment = {
@@ -96,7 +97,7 @@ export function CommentSection({
           <button
             type="submit"
             disabled={loading || !text.trim()}
-            className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-violet-700 disabled:opacity-60 dark:bg-violet-500 dark:hover:bg-violet-600"
+            className={`${authPrimaryCtaClassName} disabled:hover:translate-y-0 disabled:hover:shadow-md`}
           >
             {t("perfume.commentSubmit")}
           </button>
@@ -110,7 +111,7 @@ export function CommentSection({
             <button
               type="button"
               onClick={() => setAuthOpen(true)}
-              className="mt-2 text-sm font-medium text-violet-600 hover:underline dark:text-violet-400"
+              className={`${authPrimaryCtaClassName} mt-3 w-full sm:w-auto`}
             >
               {t("auth.login")}
             </button>

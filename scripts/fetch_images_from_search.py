@@ -147,10 +147,27 @@ def fetch_designer_perfumes(session, brand_slug: str) -> list[tuple[str, str, st
     fid: Fragrantica ID
     """
     url = f"https://www.fragrantica.com/designers/{brand_slug}.html"
-    try:
-        r = session.get(url, timeout=25)
-        r.raise_for_status()
-    except Exception:
+    r = None
+    max_attempts = 10
+    for attempt in range(max_attempts):
+        try:
+            r = session.get(url, timeout=40)
+            if r.status_code == 429:
+                wait = min(300, 30 * (attempt + 1))
+                print(
+                    f"  [429] designer {brand_slug}: {wait}s bekleniyor… ({attempt + 1}/{max_attempts})",
+                    flush=True,
+                )
+                time.sleep(wait)
+                continue
+            r.raise_for_status()
+            break
+        except Exception:
+            if attempt < max_attempts - 1:
+                time.sleep(15 * (attempt + 1))
+            else:
+                return []
+    if r is None:
         return []
 
     soup = BeautifulSoup(r.text, "html.parser")

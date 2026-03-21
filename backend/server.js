@@ -57,6 +57,27 @@ function loadPerfumes() {
 
 loadPerfumes();
 
+function computePerfumeFacets() {
+  const accordSet = new Set();
+  const longevitySet = new Set();
+  const sillageSet = new Set();
+  for (const p of perfumes) {
+    for (const a of p.accords || []) {
+      const s = String(a).trim();
+      if (s) accordSet.add(s);
+    }
+    if (p.longevity) longevitySet.add(String(p.longevity).toLowerCase());
+    if (p.sillage) sillageSet.add(String(p.sillage).toLowerCase());
+  }
+  return {
+    accords: [...accordSet].sort((a, b) => a.localeCompare(b, "en")),
+    longevity: [...longevitySet].sort(),
+    sillage: [...sillageSet].sort(),
+  };
+}
+
+const perfumeFacets = computePerfumeFacets();
+
 function loadUserRatings() {
   if (!existsSync(USER_RATINGS_PATH)) return {};
   try {
@@ -146,18 +167,26 @@ function createTransporter() {
   });
 }
 
+function verificationUrlForToken(token) {
+  return `${SITE_URL.replace(/\/$/, "")}/auth/verify?token=${encodeURIComponent(token)}`;
+}
+
 async function sendVerificationEmail(email, token) {
   const transporter = createTransporter();
+  const verifyUrl = verificationUrlForToken(token);
   if (!transporter) {
-    console.warn("SMTP yapılandırılmamış - doğrulama e-postası gönderilemedi. Token:", token);
+    console.warn(
+      "[Perfiai] SMTP yapılandırılmamış (SMTP_HOST / SMTP_USER / SMTP_PASS). Doğrulama e-postası gönderilmedi.\n" +
+        `         Yerel test için bu adresi kullanın: ${verifyUrl}`
+    );
     return false;
   }
-  const verifyUrl = `${SITE_URL.replace(/\/$/, "")}/auth/verify?token=${token}`;
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
-    to: email,
-    subject: "Perfiai - E-posta adresinizi doğrulayın",
-    html: `
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: email,
+      subject: "Perfiai - E-posta adresinizi doğrulayın",
+      html: `
       <p>Merhaba,</p>
       <p>Perfiai hesabınızı oluşturdunuz. E-posta adresinizi doğrulamak için aşağıdaki bağlantıya tıklayın:</p>
       <p><a href="${verifyUrl}" style="color:#7c3aed;font-weight:bold">E-postamı doğrula</a></p>
@@ -165,28 +194,42 @@ async function sendVerificationEmail(email, token) {
       <p>Bu link 24 saat geçerlidir.</p>
       <p>— Perfiai</p>
     `,
-  });
-  return true;
+    });
+    return true;
+  } catch (err) {
+    console.error("[Perfiai] Doğrulama e-postası gönderilemedi:", err?.message || err);
+    console.warn(`         Bağlantı (manuel deneme): ${verifyUrl}`);
+    return false;
+  }
 }
 
 async function sendLoginCodeEmail(email, code) {
   const transporter = createTransporter();
   if (!transporter) {
-    console.warn("SMTP yapılandırılmamış - giriş kodu gönderilemedi. Kod:", code);
+    console.warn(
+      "[Perfiai] SMTP yapılandırılmamış - giriş kodu e-postayla gönderilemedi.\n" +
+        `         Yerel test kodu (${email}): ${code}`
+    );
     return false;
   }
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
-    to: email,
-    subject: "Perfiai - Giriş kodunuz",
-    html: `
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: email,
+      subject: "Perfiai - Giriş kodunuz",
+      html: `
       <p>Merhaba,</p>
       <p>Perfiai giriş kodunuz: <strong style="font-size:24px;letter-spacing:4px">${code}</strong></p>
       <p>Bu kod 10 dakika geçerlidir.</p>
       <p>— Perfiai</p>
     `,
-  });
-  return true;
+    });
+    return true;
+  } catch (err) {
+    console.error("[Perfiai] Giriş kodu e-postası gönderilemedi:", err?.message || err);
+    console.warn(`         Kod (${email}): ${code}`);
+    return false;
+  }
 }
 
 function requireAuth(req, res, next) {
@@ -275,6 +318,9 @@ function getPerfumeText(perfume) {
   }
   if (perfume.short_description) {
     parts.push(String(perfume.short_description));
+  }
+  if (perfume.short_description_tr) {
+    parts.push(`TR: ${String(perfume.short_description_tr)}`);
   }
   if (perfume.season && perfume.season.length > 0) {
     parts.push(`season: ${perfume.season.join(", ")}`);
@@ -638,6 +684,180 @@ ${instruction}
   }
 }
 
+async function generateHelpWithLLM(question, pathHint, lang) {
+  const baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+  const model = process.env.OLLAMA_MODEL || "llama3";
+  const userLang = lang === "tr" ? "Turkish" : "English";
+  const systemContent =
+    lang === "tr"
+      ? `Sen Perfiai adlı parfüm keşif web sitesinin yardım asistanısın. Kısa ve net cevap ver; madde imleri kullanabilirsin (en fazla 5–7 satır).
+
+Site özeti:
+- Ana sayfa: doğal dil ile AI parfüm araması.
+- /explore (Mevcut Parfümler): liste, metin araması, gelişmiş filtreler (marka, cinsiyet, mevsim, accord, yıl, puan, kalıcılık vb.).
+- /compare (Kıyasla): 2–4 parfümü yan yana karşılaştırma; bazı özellikler için giriş gerekebilir.
+- Beğendiklerim (kalp ikonu) ve Markalar sayfası.
+
+Kurallar: Tıbbi teşhis veya alerji garantisi verme; odak site kullanımı olsun. Yanıtın dili: ${userLang}.`
+      : `You are the in-app help assistant for Perfiai, a perfume discovery website. Answer briefly; bullet points OK (max ~5–7 lines).
+
+Site summary:
+- Home: natural-language AI perfume search.
+- /explore: browse list, text search, advanced filters.
+- /compare: side-by-side compare for 2–4 perfumes; login may be required for some actions.
+- Favorites (heart icon) and Brands page.
+
+Rules: No medical or allergy guarantees; focus on how to use the site. Language: ${userLang}.`;
+
+  const prompt = {
+    model,
+    messages: [
+      { role: "system", content: systemContent },
+      {
+        role: "user",
+        content: `Current page path (if known): ${typeof pathHint === "string" ? pathHint : "unknown"}
+
+User question:
+${question}`.trim(),
+      },
+    ],
+    stream: false,
+  };
+
+  const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(prompt),
+  });
+
+  if (!response.ok) {
+    throw new Error(`LLM status ${response.status}`);
+  }
+
+  const json = await response.json();
+  const content =
+    json.choices?.[0]?.message?.content ||
+    json.choices?.[0]?.message?.[0]?.text;
+
+  if (!content || typeof content !== "string") {
+    throw new Error("LLM yanıtı boş");
+  }
+
+  return content.trim();
+}
+
+function buildHelpFallback(question, pathHint, lang) {
+  const q = (question || "").toLowerCase();
+
+  if (lang === "tr") {
+    if (/(kıyas|karşılaştır|compare|yan\s*yana|vs)/.test(q)) {
+      return [
+        "Kıyaslama için üst menüden «Kıyasla» sayfasına git.",
+        "Parfümleri seçerek en fazla 4 kokuyu yan yana notalar, mevsim ve puan açısından görebilirsin.",
+        "Bir özellik kilitliyse giriş yap veya ücretsiz hesap oluştur.",
+      ].join("\n");
+    }
+    if (/(filtre|keşif|liste|explore|mevcut\s*parfüm|daralt)/.test(q)) {
+      return [
+        "«Mevcut Parfümler» sayfasında tüm liste ve gelişmiş filtreler var.",
+        "Marka, cinsiyet, mevsim, accord, yıl, puan, kalıcılık ve iz gibi seçeneklerle sonuçları daralt.",
+        "Üstteki metin kutusu ile marka, isim veya nota ara.",
+      ].join("\n");
+    }
+    if (/(giriş|kayıt|hesap|üye|login|register|şifre|e-?posta)/.test(q)) {
+      return [
+        "Sağ üstteki profil / giriş alanından e-posta ile kayıt olabilir veya giriş yapabilirsin.",
+        "Kıyaslama veya kişisel listeler için hesap gerekebilir.",
+      ].join("\n");
+    }
+    if (/(beğeni|favori|kalp|kaydet)/.test(q)) {
+      return [
+        "Parfüm kartındaki kalp ikonuna tıklayarak beğenilerine ekle.",
+        "Menüden «Beğendiklerim» ile koleksiyonunu görürsün.",
+      ].join("\n");
+    }
+    if (/(marka|brand|dior|chanel)/.test(q)) {
+      return [
+        "Menüden «Markalar»a git; bir markaya tıklayınca o markanın tüm parfümleri listelenir.",
+      ].join("\n");
+    }
+    if (
+      /(ai|arama|nasıl|bul|kutu|ana\s*sayfa|doğal\s*dil|tarif)/.test(q)
+    ) {
+      return [
+        "Ana sayfadaki büyük kutuya istediğin kokuyu doğal cümleyle yaz (örn. «ferah yaz parfümü», «tatlı vanilya»).",
+        "«AI ile Ara» ile sonuçları getir; Türkçe ve İngilizce yazabilirsin.",
+      ].join("\n");
+    }
+    const pathNote =
+      typeof pathHint === "string" && pathHint
+        ? `\n\n(Şu anki sayfa: ${pathHint})`
+        : "";
+    return [
+      "Şunları deneyebilirsin:",
+      "• Ana sayfa: doğal dil ile AI arama",
+      "• Mevcut Parfümler: gelişmiş filtreler ve liste",
+      "• Kıyasla: 2–4 parfüm karşılaştırma",
+      "• Beğendiklerim ve Markalar",
+      "",
+      "Sorunu biraz daha net yazarsan daha iyi yönlendirebilirim.",
+    ]
+      .join("\n")
+      .trim() + pathNote;
+  }
+
+  if (/(compare|side\s*by\s*side|versus|\bvs\b)/.test(q)) {
+    return [
+      "Open «Compare» in the menu, pick perfumes, and view up to four side by side (notes, season, ratings).",
+      "Sign in or create a free account if a feature is locked.",
+    ].join("\n");
+  }
+  if (/(filter|explore|browse|list|narrow)/.test(q)) {
+    return [
+      "«All Perfumes» (/explore) has the full list and advanced filters.",
+      "Filter by brand, gender, season, accords, year, rating, longevity, sillage, and use the text box to search.",
+    ].join("\n");
+  }
+  if (/(sign\s*in|log\s*in|register|account|password|email)/.test(q)) {
+    return [
+      "Use the profile / sign-in control in the top-right to register or log in with email.",
+      "Some actions (e.g. compare or personal lists) may require an account.",
+    ].join("\n");
+  }
+  if (/(favorite|heart|save)/.test(q)) {
+    return [
+      "Click the heart on a card to save it to your favorites.",
+      "Open «Favorites» in the menu to see your list.",
+    ].join("\n");
+  }
+  if (/(brand|dior|chanel)/.test(q)) {
+    return [
+      "Go to «Brands» in the menu; pick a brand to see all its perfumes.",
+    ].join("\n");
+  }
+  if (/(ai|search|how|find|home|natural\s*language)/.test(q)) {
+    return [
+      "On the home page, describe the scent you want in plain language, then tap «AI Search».",
+      "Turkish and English queries both work.",
+    ].join("\n");
+  }
+  const pathNote =
+    typeof pathHint === "string" && pathHint
+      ? `\n\n(Current page: ${pathHint})`
+      : "";
+  return (
+    [
+      "Try:",
+      "• Home: natural-language AI search",
+      "• All Perfumes: filters and browse",
+      "• Compare: 2–4 perfumes side by side",
+      "• Favorites and Brands",
+      "",
+      "Rephrase your question for a more specific tip.",
+    ].join("\n") + pathNote
+  );
+}
+
 // Türkçe koku kelimelerini İngilizce karşılıklarıyla genişlet (AI arama için)
 const TURKISH_SCENT_MAP = {
   narenciye: "citrus",
@@ -723,8 +943,22 @@ function applyCommonFilters(perfumeList, queryParams) {
       const name = (p.name || "").toLowerCase();
       const gender = (p.gender || "").toLowerCase();
       const description = (p.short_description || "").toLowerCase();
+      const descriptionTr = (p.short_description_tr || "").toLowerCase();
       const accords = (p.accords || []).map((a) => a.toLowerCase());
-      const allText = [brand, name, gender, description, ...accords].join(" ");
+      const noteBuckets = [
+        ...(p.notes?.top || []),
+        ...(p.notes?.middle || []),
+        ...(p.notes?.base || []),
+      ].map((n) => String(n).toLowerCase());
+      const allText = [
+        brand,
+        name,
+        gender,
+        description,
+        descriptionTr,
+        ...accords,
+        ...noteBuckets,
+      ].join(" ");
 
       return qTokens.some((t) => allText.includes(t));
     });
@@ -744,17 +978,75 @@ function applyCommonFilters(perfumeList, queryParams) {
     );
   }
 
-  // Sıralama (order: asc=artan, desc=azalan)
-  const sort = queryParams.sort || "rating";
-  const order = queryParams.order === "asc" ? -1 : 1;
-  if (sort === "rating") {
-    result.sort((a, b) => ((b.rating || 0) - (a.rating || 0)) * order);
-  } else if (sort === "year") {
-    result.sort((a, b) => ((b.year || 0) - (a.year || 0)) * order);
-  } else if (sort === "name") {
-    result.sort(
-      (a, b) => (a.name || "").localeCompare(b.name || "") * order
+  const minR = parseFloat(queryParams.min_rating);
+  if (!Number.isNaN(minR)) {
+    result = result.filter((p) => (p.rating || 0) >= minR);
+  }
+  const maxR = parseFloat(queryParams.max_rating);
+  if (!Number.isNaN(maxR)) {
+    result = result.filter((p) => (p.rating || 0) <= maxR);
+  }
+
+  const yMin = parseInt(queryParams.year_min, 10);
+  if (!Number.isNaN(yMin) && yMin > 0) {
+    result = result.filter((p) => (p.year || 0) >= yMin);
+  }
+  const yMax = parseInt(queryParams.year_max, 10);
+  if (!Number.isNaN(yMax) && yMax > 0) {
+    result = result.filter((p) => (p.year || 0) <= yMax);
+  }
+
+  const longevityF = (queryParams.longevity || "").trim().toLowerCase();
+  if (longevityF) {
+    result = result.filter(
+      (p) => (p.longevity || "").toLowerCase() === longevityF
     );
+  }
+
+  const sillageF = (queryParams.sillage || "").trim().toLowerCase();
+  if (sillageF) {
+    result = result.filter(
+      (p) => (p.sillage || "").toLowerCase() === sillageF
+    );
+  }
+
+  const accRaw = (queryParams.accords || queryParams.accord || "").trim();
+  if (accRaw) {
+    const tokens = accRaw
+      .split(/[,;]+/)
+      .map((x) => x.trim().toLowerCase())
+      .filter(Boolean);
+    if (tokens.length) {
+      const modeAll = (queryParams.accord_mode || "any").toLowerCase() === "all";
+      result = result.filter((p) => {
+        const pa = (p.accords || []).map((a) => String(a).toLowerCase());
+        const matchOne = (t) =>
+          pa.some((a) => a === t || a.includes(t) || t.includes(a));
+        return modeAll
+          ? tokens.every((t) => matchOne(t))
+          : tokens.some((t) => matchOne(t));
+      });
+    }
+  }
+
+  const minRev = parseInt(queryParams.min_reviews, 10);
+  if (!Number.isNaN(minRev) && minRev > 0) {
+    result = result.filter((p) => (p.user_rating_count || 0) >= minRev);
+  }
+
+  // Sıralama (order: asc — rating/yıl için düşük→yüksek, isim için Z→A)
+  if (!queryParams.skipSort) {
+    const sort = queryParams.sort || "rating";
+    const order = queryParams.order === "asc" ? -1 : 1;
+    if (sort === "rating") {
+      result.sort((a, b) => ((b.rating || 0) - (a.rating || 0)) * order);
+    } else if (sort === "year") {
+      result.sort((a, b) => ((b.year || 0) - (a.year || 0)) * order);
+    } else if (sort === "name") {
+      result.sort(
+        (a, b) => (a.name || "").localeCompare(b.name || "") * order
+      );
+    }
   }
 
   return result;
@@ -815,11 +1107,48 @@ function scorePerfumeForQuery(perfume, rawQuery) {
   return score;
 }
 
+// GET /perfume-facets — accord / longevity / sillage benzersiz listeleri (filtre UI)
+app.get("/perfume-facets", (_req, res) => {
+  res.json(perfumeFacets);
+});
+
+// POST /ai-help — site kullanımı yardımı (OLLAMA_ENABLED=1 ise LLM, aksi kural tabanlı)
+// Body: { question: string, path?: string, locale?: "tr" | "en" }
+app.post("/ai-help", async (req, res) => {
+  try {
+    const { question, path: pathHint, locale } = req.body || {};
+    const q = typeof question === "string" ? question.trim().slice(0, 800) : "";
+    if (!q) {
+      return res.status(400).json({ error: "question gerekli." });
+    }
+    const lang = locale === "en" ? "en" : "tr";
+    const ollamaOn = process.env.OLLAMA_ENABLED === "1";
+    let answer;
+    let mode = "rules";
+    if (ollamaOn) {
+      try {
+        answer = await generateHelpWithLLM(q, pathHint, lang);
+        mode = "llm";
+      } catch (e) {
+        console.warn("ai-help LLM fallback:", e.message);
+        answer = buildHelpFallback(q, pathHint, lang);
+        mode = "rules";
+      }
+    } else {
+      answer = buildHelpFallback(q, pathHint, lang);
+    }
+    res.json({ ok: true, answer, mode });
+  } catch (e) {
+    console.error("ai-help:", e);
+    res.status(500).json({ error: "Yardım yanıtı üretilemedi." });
+  }
+});
+
 // GET /perfumes - Liste (pagination, search, filter)
 app.get("/perfumes", (req, res) => {
-  const filtered = applyCommonFilters(perfumes, req.query);
+  const enrichedAll = perfumes.map(enrichWithRating);
+  const filtered = applyCommonFilters(enrichedAll, req.query);
   const response = paginate(filtered, req.query);
-  response.data = response.data.map(enrichWithRating);
   res.json(response);
 });
 
@@ -834,11 +1163,22 @@ app.post("/ai-search", async (req, res) => {
 
   const lang = detectLanguage(query);
 
-  // Ortak filtreleri kullan (gender, season vs.)
-  const baseFiltered = applyCommonFilters(perfumes, {
+  const extra = req.body || {};
+  const baseFiltered = applyCommonFilters(perfumes.map(enrichWithRating), {
     q: "",
     gender,
     season,
+    brand: typeof extra.brand === "string" ? extra.brand : "",
+    min_rating: extra.min_rating,
+    max_rating: extra.max_rating,
+    year_min: extra.year_min,
+    year_max: extra.year_max,
+    longevity: extra.longevity,
+    sillage: extra.sillage,
+    accords: extra.accords,
+    accord_mode: extra.accord_mode,
+    min_reviews: extra.min_reviews,
+    skipSort: true,
   });
 
   const effectiveLimit = Math.min(
@@ -899,7 +1239,7 @@ app.post("/ai-search", async (req, res) => {
 
     const scored = baseFiltered
       .map((p) => {
-        const idx = perfumes.indexOf(p);
+        const idx = perfumes.findIndex((x) => String(x.id) === String(p.id));
         const perfumeEmbedding = embeddings[idx];
         const sim = perfumeEmbedding
           ? cosineSimilarity(queryEmbedding, perfumeEmbedding)
@@ -1000,7 +1340,7 @@ app.get("/perfumes/:id", (req, res) => {
   res.json(enriched);
 });
 
-// POST /auth/register (Kaydet) - Sadece email, 2 haftalık token, kod yok
+// POST /auth/register (Kaydet) — yeni hesap: verified=false, doğrulama e-postası (SMTP gerekli)
 app.post("/auth/register", async (req, res) => {
   const { email, name } = req.body || {};
   if (!email || typeof email !== "string") {
@@ -1009,27 +1349,56 @@ app.post("/auth/register", async (req, res) => {
   const emailNorm = email.trim().toLowerCase();
   if (emailNorm.length < 3) return res.status(400).json({ error: "Geçerli email girin" });
   let user = users.find((u) => u.email.toLowerCase() === emailNorm);
+  let isNewUser = false;
+  let verificationTokenForDev = null;
+  let emailSent = true;
+
   if (!user) {
+    isNewUser = true;
     user = {
       id: String(Date.now()),
       email: emailNorm,
       name: (name || emailNorm.split("@")[0]).trim().slice(0, 50),
-      verified: true,
+      verified: false,
+      favoritePerfumeIds: [],
     };
     users.push(user);
     saveUsers();
+    const verifyToken = crypto.randomBytes(32).toString("hex");
+    verificationTokenForDev = verifyToken;
+    verificationTokens[verifyToken] = {
+      userId: user.id,
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+    };
+    saveVerificationTokens();
+    emailSent = await sendVerificationEmail(user.email, verifyToken);
   }
+
+  const verifiedFlag = user.verified === undefined ? true : !!user.verified;
   const token = jwt.sign(
-    { id: user.id, email: user.email, name: user.name, verified: true },
+    { id: user.id, email: user.email, name: user.name, verified: verifiedFlag },
     JWT_SECRET,
     { expiresIn: "14d" }
   );
-  res.json({
+
+  const baseUser = { id: user.id, email: user.email, name: user.name, verified: verifiedFlag };
+  const payload = {
     ok: true,
     token,
-    user: { id: user.id, email: user.email, name: user.name, verified: true },
-    message: "Kayıt başarılı. 2 hafta boyunca giriş yapmanız gerekmez.",
-  });
+    user: baseUser,
+    emailVerificationSent: isNewUser ? emailSent : undefined,
+    message: isNewUser
+      ? emailSent
+        ? "Kayıt başarılı. E-postanızdaki bağlantı ile adresinizi doğrulayın (spam klasörüne de bakın)."
+        : "Kayıt oluşturuldu ancak doğrulama e-postası gönderilemedi. Sunucuda SMTP ayarlarını kontrol edin veya «Doğrulama e-postasını tekrar gönder» kullanın."
+      : "Hoş geldiniz.",
+  };
+
+  if (isNewUser && !emailSent && process.env.NODE_ENV !== "production" && verificationTokenForDev) {
+    payload.devVerificationUrl = verificationUrlForToken(verificationTokenForDev);
+  }
+
+  res.json(payload);
 });
 
 // POST /auth/send-code - Giriş kodu gönder
@@ -1042,8 +1411,15 @@ app.post("/auth/send-code", async (req, res) => {
   const code = String(Math.floor(100000 + Math.random() * 900000));
   loginCodes[emailNorm] = { code, expiresAt: Date.now() + 10 * 60 * 1000 };
   saveLoginCodes();
-  await sendLoginCodeEmail(emailNorm, code);
-  res.json({ ok: true, message: "Giriş kodu e-postanıza gönderildi" });
+  const sent = await sendLoginCodeEmail(emailNorm, code);
+  res.json({
+    ok: true,
+    emailSent: sent,
+    message: sent
+      ? "Giriş kodu e-postanıza gönderildi"
+      : "Kod üretildi ancak e-posta gönderilemedi (SMTP yok veya hata). Geliştirme ortamında kod sunucu konsolunda.",
+    ...(process.env.NODE_ENV !== "production" && !sent ? { devLoginCode: code } : {}),
+  });
 });
 
 // POST /auth/verify-code - Kodu doğrula, token dön (remember=true ise 2 hafta)
@@ -1109,8 +1485,91 @@ app.post("/auth/resend-verification", requireAuth, async (req, res) => {
   const verifyToken = crypto.randomBytes(32).toString("hex");
   verificationTokens[verifyToken] = { userId: user.id, expiresAt: Date.now() + 24 * 60 * 60 * 1000 };
   saveVerificationTokens();
-  await sendVerificationEmail(user.email, verifyToken);
-  res.json({ ok: true, message: "Doğrulama e-postası tekrar gönderildi" });
+  const sent = await sendVerificationEmail(user.email, verifyToken);
+  const payload = {
+    ok: true,
+    emailSent: sent,
+    message: sent
+      ? "Doğrulama e-postası tekrar gönderildi"
+      : "E-posta gönderilemedi. SMTP ayarlarını kontrol edin.",
+  };
+  if (!sent && process.env.NODE_ENV !== "production") {
+    payload.devVerificationUrl = verificationUrlForToken(verifyToken);
+  }
+  res.json(payload);
+});
+
+const MAX_FAVORITES = 500;
+
+function ensureUserFavorites(user) {
+  if (!user) return [];
+  if (!Array.isArray(user.favoritePerfumeIds)) {
+    user.favoritePerfumeIds = [];
+    saveUsers();
+  }
+  return user.favoritePerfumeIds;
+}
+
+function perfumeIdExists(perfumeId) {
+  return perfumes.some((p) => String(p.id) === String(perfumeId));
+}
+
+// GET /me/favorites — giriş gerekli, kalıcı beğenilen parfüm id listesi
+app.get("/me/favorites", requireAuth, (req, res) => {
+  const user = users.find((u) => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+  const ids = ensureUserFavorites(user);
+  res.json({ ids: [...ids] });
+});
+
+// POST /me/favorites — body: { perfumeId }
+app.post("/me/favorites", requireAuth, (req, res) => {
+  const perfumeId = String(req.body?.perfumeId ?? "").trim();
+  if (!perfumeId) return res.status(400).json({ error: "perfumeId gerekli" });
+  if (!perfumeIdExists(perfumeId)) {
+    return res.status(404).json({ error: "Parfüm bulunamadı" });
+  }
+  const user = users.find((u) => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+  const list = ensureUserFavorites(user);
+  if (list.includes(perfumeId)) {
+    return res.json({ ok: true, ids: [...list] });
+  }
+  if (list.length >= MAX_FAVORITES) {
+    return res.status(400).json({ error: "Beğenilenler listesi dolu" });
+  }
+  list.push(perfumeId);
+  saveUsers();
+  res.json({ ok: true, ids: [...list] });
+});
+
+// DELETE /me/favorites/:perfumeId
+app.delete("/me/favorites/:perfumeId", requireAuth, (req, res) => {
+  const perfumeId = String(req.params.perfumeId);
+  const user = users.find((u) => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+  const list = ensureUserFavorites(user);
+  user.favoritePerfumeIds = list.filter((id) => id !== perfumeId);
+  saveUsers();
+  res.json({ ok: true, ids: [...user.favoritePerfumeIds] });
+});
+
+// PUT /me/favorites — body: { ids: string[] } tam liste (senkron / migrasyon)
+app.put("/me/favorites", requireAuth, (req, res) => {
+  let bodyIds = req.body?.ids;
+  if (!Array.isArray(bodyIds)) {
+    return res.status(400).json({ error: "ids bir dizi olmalı" });
+  }
+  const unique = [...new Set(bodyIds.map((x) => String(x).trim()).filter(Boolean))].slice(
+    0,
+    MAX_FAVORITES
+  );
+  const valid = unique.filter((id) => perfumeIdExists(id));
+  const user = users.find((u) => u.id === req.user.id);
+  if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
+  user.favoritePerfumeIds = valid;
+  saveUsers();
+  res.json({ ok: true, ids: [...valid] });
 });
 
 // GET /auth/me - token ile kullanıcı bilgisi
@@ -1240,6 +1699,7 @@ app.get("/", (req, res) => {
     endpoints: {
       "GET /perfumes": "Liste (q, gender, season, page, limit, sort, order)",
       "GET /perfumes/:id": "Tek parfüm detayı",
+      "POST /ai-help": "Site kullanım yardımı (question, path?, locale?)",
     },
     totalPerfumes: perfumes.length,
   });

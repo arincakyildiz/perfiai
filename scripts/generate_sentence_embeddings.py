@@ -44,6 +44,7 @@ def perfume_to_text(p: dict) -> str:
   season = p.get("season") or []
   notes = p.get("notes") or {}
   short_desc = p.get("short_description") or ""
+  short_desc_tr = p.get("short_description_tr") or ""
 
   if brand:
     parts.append(str(brand))
@@ -71,6 +72,8 @@ def perfume_to_text(p: dict) -> str:
 
   if short_desc:
     parts.append(str(short_desc))
+  if short_desc_tr:
+    parts.append("TR: " + str(short_desc_tr))
 
   return " | ".join(parts)
 

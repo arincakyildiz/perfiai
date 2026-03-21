@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { Suspense } from "react";
-import { PerfumeCard } from "@/components/PerfumeCard";
+import { PerfumeCardFavoriteWrap } from "@/components/PerfumeCardFavoriteWrap";
 import { ExploreFilters } from "@/components/ExploreFilters";
 import { useLanguage } from "@/contexts/LanguageContext";
+import type { PerfumeFacets } from "@/lib/perfumeFilterParams";
 
 type Perfume = {
   id: string;
@@ -16,8 +17,28 @@ type Perfume = {
   gender?: string;
 };
 
+export type ExploreFilterParams = {
+  page?: number;
+  brand?: string;
+  gender?: string;
+  season?: string;
+  sort?: string;
+  order?: string;
+  q?: string;
+  min_rating?: string;
+  max_rating?: string;
+  year_min?: string;
+  year_max?: string;
+  longevity?: string;
+  sillage?: string;
+  accords?: string;
+  accord_mode?: string;
+  min_reviews?: string;
+};
+
 type ExploreContentProps = {
   brands: string[];
+  facets: PerfumeFacets;
   perfumes: Perfume[];
   total: number;
   page: number;
@@ -26,30 +47,45 @@ type ExploreContentProps = {
   currentGender: string;
   currentSeason: string;
   currentSort: string;
+  currentOrder: string;
+  currentQ: string;
+  currentMinRating: string;
+  currentMaxRating: string;
+  currentYearMin: string;
+  currentYearMax: string;
+  currentLongevity: string;
+  currentSillage: string;
+  currentAccords: string;
+  currentAccordMode: string;
+  currentMinReviews: string;
   loadError?: boolean;
 };
 
-function buildExploreUrl(params: {
-  page?: number;
-  brand?: string;
-  gender?: string;
-  season?: string;
-  sort?: string;
-  q?: string;
-}) {
+function buildExploreUrl(params: ExploreFilterParams) {
   const sp = new URLSearchParams();
   if (params.page && params.page > 1) sp.set("page", String(params.page));
   if (params.brand) sp.set("brand", params.brand);
   if (params.gender) sp.set("gender", params.gender);
   if (params.season) sp.set("season", params.season);
   if (params.sort && params.sort !== "rating") sp.set("sort", params.sort);
+  if (params.order === "asc") sp.set("order", "asc");
   if (params.q) sp.set("q", params.q);
+  if (params.min_rating) sp.set("min_rating", params.min_rating);
+  if (params.max_rating) sp.set("max_rating", params.max_rating);
+  if (params.year_min) sp.set("year_min", params.year_min);
+  if (params.year_max) sp.set("year_max", params.year_max);
+  if (params.longevity) sp.set("longevity", params.longevity);
+  if (params.sillage) sp.set("sillage", params.sillage);
+  if (params.accords) sp.set("accords", params.accords);
+  if (params.accord_mode === "all") sp.set("accord_mode", "all");
+  if (params.min_reviews) sp.set("min_reviews", params.min_reviews);
   const s = sp.toString();
   return s ? `/explore?${s}` : "/explore";
 }
 
 export function ExploreContent({
   brands,
+  facets,
   perfumes,
   total,
   page,
@@ -58,10 +94,37 @@ export function ExploreContent({
   currentGender,
   currentSeason,
   currentSort = "rating",
+  currentOrder = "desc",
+  currentQ = "",
+  currentMinRating = "",
+  currentMaxRating = "",
+  currentYearMin = "",
+  currentYearMax = "",
+  currentLongevity = "",
+  currentSillage = "",
+  currentAccords = "",
+  currentAccordMode = "any",
+  currentMinReviews = "",
   loadError = false,
 }: ExploreContentProps) {
   const { t } = useLanguage();
-  const currentFilters = { brand: currentBrand, gender: currentGender, season: currentSeason, sort: currentSort };
+  const currentFilters: ExploreFilterParams = {
+    brand: currentBrand,
+    gender: currentGender,
+    season: currentSeason,
+    sort: currentSort,
+    order: currentOrder,
+    q: currentQ,
+    min_rating: currentMinRating,
+    max_rating: currentMaxRating,
+    year_min: currentYearMin,
+    year_max: currentYearMax,
+    longevity: currentLongevity,
+    sillage: currentSillage,
+    accords: currentAccords,
+    accord_mode: currentAccordMode,
+    min_reviews: currentMinReviews,
+  };
 
   return (
     <main className="space-y-8">
@@ -87,10 +150,22 @@ export function ExploreContent({
       >
         <ExploreFilters
           brands={brands}
+          facets={facets}
           currentBrand={currentBrand}
           currentGender={currentGender}
           currentSeason={currentSeason}
           currentSort={currentSort}
+          currentOrder={currentOrder}
+          currentQ={currentQ}
+          currentMinRating={currentMinRating}
+          currentMaxRating={currentMaxRating}
+          currentYearMin={currentYearMin}
+          currentYearMax={currentYearMax}
+          currentLongevity={currentLongevity}
+          currentSillage={currentSillage}
+          currentAccords={currentAccords}
+          currentAccordMode={currentAccordMode}
+          currentMinReviews={currentMinReviews}
         />
       </Suspense>
 
@@ -101,13 +176,7 @@ export function ExploreContent({
       ) : (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {perfumes.map((p) => (
-            <Link
-              key={p.id}
-              href={`/perfume/${p.id}`}
-              className="block transition duration-300 hover:-translate-y-1"
-            >
-              <PerfumeCard perfume={p} />
-            </Link>
+            <PerfumeCardFavoriteWrap key={p.id} perfume={p} />
           ))}
         </div>
       )}

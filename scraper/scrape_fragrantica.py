@@ -140,12 +140,32 @@ def extract_brand_name_from_url(url: str) -> tuple[str, str]:
 
 
 def scrape_perfume(url: str, perfume_id: str, session) -> dict | None:
-    """Tek bir parfum sayfasindan veri cek."""
-    try:
-        response = session.get(url, timeout=30)
-        response.raise_for_status()
-    except Exception as e:
-        print(f"  [X] Request hatasi: {e}")
+    """Tek bir parfum sayfasindan veri cek. 429 icin birkaç kez bekleyip tekrar dener."""
+    response = None
+    last_err = None
+    max_attempts = 10
+    for attempt in range(max_attempts):
+        try:
+            r = session.get(url, timeout=45)
+            if r.status_code == 429:
+                wait = min(300, 30 * (attempt + 1))
+                print(
+                    f"  [429] Fragrantica rate limit, {wait}s bekleniyor… (deneme {attempt + 1}/{max_attempts})"
+                )
+                time.sleep(wait)
+                continue
+            r.raise_for_status()
+            response = r
+            break
+        except Exception as e:
+            last_err = e
+            if attempt < max_attempts - 1:
+                time.sleep(10 * (attempt + 1))
+            else:
+                print(f"  [X] Request hatasi: {e}")
+                return None
+    if response is None:
+        print(f"  [X] Basarisiz (429 veya ag): {last_err}")
         return None
 
     soup = BeautifulSoup(response.text, "html.parser")

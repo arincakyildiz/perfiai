@@ -13,13 +13,34 @@ const TOKEN_KEY = "perfiai_token";
 
 type User = { id: string; email: string; name: string; verified?: boolean };
 
+type SendLoginCodeResult =
+  | { ok: true; message?: string; emailSent?: boolean; devLoginCode?: string }
+  | { ok: false; error: string };
+
+type RegisterResult =
+  | {
+      ok: true;
+      message?: string;
+      emailVerificationSent?: boolean;
+      devVerificationUrl?: string;
+    }
+  | { ok: false; error: string };
+
+type SendCodeResponse = {
+  ok?: boolean;
+  error?: string;
+  message?: string;
+  emailSent?: boolean;
+  devLoginCode?: string;
+};
+
 type AuthContextType = {
   user: User | null;
   token: string | null;
   loading: boolean;
-  sendLoginCode: (email: string) => Promise<{ ok: boolean; error?: string }>;
+  sendLoginCode: (email: string) => Promise<SendLoginCodeResult>;
   verifyCode: (email: string, code: string, remember?: boolean) => Promise<{ ok: boolean; error?: string }>;
-  register: (email: string, name?: string) => Promise<{ ok: boolean; error?: string }>;
+  register: (email: string, name?: string) => Promise<RegisterResult>;
   logout: () => void;
   refreshUser: () => Promise<void>;
   resendVerification: () => Promise<{ ok: boolean; error?: string }>;
@@ -52,20 +73,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const sendLoginCode = useCallback(async (email: string) => {
-    try {
-      const res = await fetch(apiUrl("/auth/send-code"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-      if (data.ok) return { ok: true };
-      return { ok: false, error: data.error || "Kod gönderilemedi" };
-    } catch {
-      return { ok: false, error: "Bağlantı hatası" };
-    }
-  }, []);
+  const sendLoginCode = useCallback(
+    async (email: string): Promise<SendLoginCodeResult> => {
+      try {
+        const res = await fetch(apiUrl("/auth/send-code"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+        const data = (await res.json()) as SendCodeResponse;
+        if (data.ok) {
+          return {
+            ok: true,
+            message: data.message,
+            emailSent: data.emailSent,
+            devLoginCode: data.devLoginCode,
+          };
+        }
+        return {
+          ok: false,
+          error: data.error ?? "Kod gönderilemedi",
+        };
+      } catch {
+        return { ok: false, error: "Bağlantı hatası" };
+      }
+    },
+    []
+  );
 
   const verifyCode = useCallback(async (email: string, code: string, remember = false) => {
     try {
@@ -87,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(async (email: string, name?: string) => {
+  const register = useCallback(async (email: string, name?: string): Promise<RegisterResult> => {
     try {
       const res = await fetch(apiUrl("/auth/register"), {
         method: "POST",
@@ -99,7 +133,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem(TOKEN_KEY, data.token);
         setToken(data.token);
         setUser(data.user);
-        return { ok: true };
+        return {
+          ok: true,
+          message: data.message,
+          emailVerificationSent: data.emailVerificationSent,
+          devVerificationUrl: data.devVerificationUrl,
+        };
       }
       return { ok: false, error: data.error || "Kayıt başarısız" };
     } catch {

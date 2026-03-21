@@ -42,16 +42,77 @@ perfiai/
 
 ---
 
-## 🛍️ Sephora’dan eksik parfüm ekleme
+## 🛍️ Sephora’dan parfüm ekleme / güncelleme
 
-Sephora US’nin herkese açık katalog API’si ile **kadın / erkek / unisex** parfüm listeleri çekilir; `data/perfumes.json` içinde **marka + isim** ile zaten olanlar atlanır (hediye seti / numune gibi isimler filtrelenir).
+Sephora US **liste API**’si kullanılır (ürün sayfası API’si ağır / kısıtlı olduğu için nota piramidi ve accord’lar listede yok; bu alanlar şimdilik şablonda boş veya genel değerlerle doldurulur).
+
+- **Ana kaynak:** `Fragrance` vitrini (`cat160006`, ~1827 satır) — vitrinde görünen her ürün satırı işlenir.
+- **Cinsiyet:** Kadın / erkek / unisex alt kategorilerinden `productId` eşlemesi; eşleşmeyenler `unisex`.
+- **Görsel:** `image_url` Sephora CDN (`productimages/sku/...`, `imwidth=497`).
+- **Ek alanlar:** `sephoraProductId`, `sephoraSkuId`, `sephoraReviewCount`, `sephoraListPrice`, `source: "sephora"`.
+- Varsayılan olarak **hediye seti / numune / mum-ev kokusu** isimleri filtrelenir; setleri de almak için `--include-gift-sets`.
 
 ```bash
-node scripts/import_sephora_perfumes.mjs --dry-run   # sadece özet
-node scripts/import_sephora_perfumes.mjs             # perfumes.json’a yazar
+node scripts/import_sephora_perfumes.mjs --dry-run
+node scripts/import_sephora_perfumes.mjs
+node scripts/import_sephora_perfumes.mjs --include-gift-sets   # setler dahil
+
+# Mevcut Sephora kayıtlarını vitrin listesiyle eşleştirip SKU / yorum / görsel güncelle
+node scripts/enrich_sephora_listing.mjs --dry-run
+node scripts/enrich_sephora_listing.mjs
 ```
 
-Yeni kayıtlarda `image_url` Sephora CDN’den gelir; `sephoraProductId` ve `source: "sephora"` alanları eklenir. **Embedding** modu kullanıyorsan parfüm listesi büyüdükçe `perfume_embeddings_st.json` dosyasını yeniden üretmen gerekir.
+**Embedding** modunda liste büyüdükçe `perfume_embeddings_st.json` dosyasını yeniden üretmen gerekir.
+
+### Sephora satırlarını Fragrantica ile doldurma (nota / accord / yıl / açıklama)
+
+Liste API’sinde olmayan alanlar için **Fragrantica** üzerinden marka sayfası + parfüm sayfası eşleştirilir (`cloudscraper` önerilir).
+
+```bash
+pip install cloudscraper beautifulsoup4
+python -u scripts/enrich_sephora_from_fragrantica.py --dry-run --limit 10
+python -u scripts/enrich_sephora_from_fragrantica.py --resume   # kesintiden sonra
+# Sadece year alanı boş Sephora satırları (placeholder temizliğinden sonra):
+python -u scripts/enrich_sephora_from_fragrantica.py --resume --only-missing-year
+```
+
+- Her başarılı kayıt `data/perfumes.json` dosyasına yazılır; `fragranticaUrl` eklenir.
+- Fragrantica sık **429 (rate limit)** verebilir; script bekleyip tekrar dener. IP geçici bloklanırsa **30–60 dk** bekleyip `python -u scripts/enrich_sephora_from_fragrantica.py --resume …` ile devam edin veya ilk istekten önce bekleme: `--start-sleep 120`.
+- **Fragrantica olmadan yıl:** `year` alanı boş Sephora satırlarında metinde 4 haneli yıl varsa: `node scripts/fill_sephora_missing_year_from_text.mjs`
+- Sephora’da olup Fragrantica’da sayfası olmayan / isim eşleşmeyen ürünler için script sonunda **heuristic** mod devreye girer: ürün adındaki kelimelerden accord + üst nota satırları üretir (`enrichmentSource`: `fragrantica` | `heuristic`).
+- Sadece sezgisel doldurma (HTTP yok):  
+  `python -u scripts/enrich_sephora_from_fragrantica.py --heuristic-only`
+
+**Elle doğrulanmış notalar (marka / perakende / kamuya açık piramit):** `data/sephora_manual_overrides.json` içine `sephoraProductId` anahtarıyla kayıt ekle; sonra:
+
+```bash
+node scripts/merge_sephora_overrides.mjs
+```
+
+Tam piramit + `short_description` verdiğinde `enrichmentSource` → `manual` olur ve `short_description_tr` yeniden üretilir. **Sadece `{ "year": 2024 }` gibi yıl** verirsen sadece `year` güncellenir; mevcut `enrichmentSource` / açıklamalar korunur.
+
+**Sephora’da kalan `year: 2026` placeholder:** İsim / kısa açıklamada geçen 4 haneli yıl (1980–2025) varsa `year` buna çekilir; metinde yıl yoksa `year` alanı kaldırılır (detay sayfasında yanlış yıl gösterilmez).
+
+```bash
+node scripts/fix_sephora_placeholder_years.mjs --dry-run
+node scripts/fix_sephora_placeholder_years.mjs
+```
+
+Önce `merge_sephora_overrides` çalıştırıp SKU’lara elle girilen `year` değerlerini yazdırın; sonra bu script’i kullanın.
+
+`sephora_manual_overrides.json` dosyasını Fragrantica script’i de okur: Fragrantica URL’si olmayan satırlarda `--heuristic-only` çalıştırınca bu kayıtlar keyword tahmininin önüne geçer. Yılı hâlâ boş kalan Sephora satırları için `--resume --only-missing-year` ile sadece o kuyruk işlenir (yıl metinde yoksa Fragrantica’dan gelir).
+
+### Sephora heuristic → gerçek piramit (marka kataloğu, ~400+ koku)
+
+Kamuya açık / marka piramitlerinden derlenen **`data/sephora_brand_pyramids.json`** dosyası `scripts/sephora_catalog_fragments.py` + `scripts/emit_sephora_brand_pyramids.py` ile üretilir. Sephora satırında `enrichmentSource === "heuristic"` ve `fragranticaUrl` yokken marka + ürün adı eşleştirilir; eşleşirse `enrichmentSource` → **`catalog`** olur.
+
+```bash
+python scripts/emit_sephora_brand_pyramids.py   # JSON’u yenile
+node scripts/enrich_sephora_from_brand_catalog.mjs --dry-run
+node scripts/enrich_sephora_from_brand_catalog.mjs
+```
+
+Yeni koku eklemek için `scripts/sephora_catalog_fragments.py` içindeki `_MORE` / `_MORE3` bloklarına marka altında anahtar ekleyip yukarıdaki komutları çalıştır. `data/sephora_heuristic_targets.json` (sadece liste) gerekirse `data/perfumes.json` üzerinden yeniden üretilebilir.
 
 ---
 
@@ -100,11 +161,11 @@ Query ve parfüm metinlerini vektöre çevirip cosine similarity ile sıralamak 
 cd /path/to/perfiai
 python3 -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install sentence-transformers
+pip install -r scripts/requirements-embeddings.txt
 python3 scripts/generate_sentence_embeddings.py
 ```
 
-Çıktı: `data/perfume_embeddings_st.json` (884 vektör).
+Çıktı: `data/perfume_embeddings_st.json` (`perfumes.json` ile aynı kayıt sırası ve uzunlukta vektör listesi; metne `short_description_tr` da dahildir).
 
 ### 2. Embedding API’yi çalıştır (sorgu → vektör)
 

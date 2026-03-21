@@ -9,7 +9,7 @@ export function ThemeSwitcher() {
     <button
       type="button"
       onClick={toggleTheme}
-      className="flex h-9 w-9 items-center justify-center rounded-lg border border-violet-200/40 bg-violet-100/80 text-violet-700 transition hover:bg-violet-200/60 dark:border-violet-500/30 dark:bg-violet-950/20 dark:text-violet-200/90 dark:hover:bg-violet-950/30"
+      className="flex h-9 w-9 items-center justify-center rounded-lg border border-violet-200/40 bg-violet-100/80 text-violet-700 shadow-sm ring-2 ring-transparent transition-all duration-200 hover:-translate-y-0.5 hover:bg-violet-200 hover:shadow-md hover:ring-violet-400/40 dark:border-violet-500/30 dark:bg-violet-950/20 dark:text-violet-200/90 dark:hover:bg-violet-900/50 dark:hover:ring-violet-400/30"
       aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
     >
       {theme === "dark" ? (
