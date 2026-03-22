@@ -9,7 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function VerifyPage() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
-  const { refreshUser } = useAuth();
+  const { establishSessionFromToken } = useAuth();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
 
@@ -25,7 +25,9 @@ export default function VerifyPage() {
         if (data.ok) {
           setStatus("success");
           setMessage(data.message || "E-posta adresiniz doğrulandı.");
-          refreshUser();
+          if (typeof data.token === "string" && data.token) {
+            void establishSessionFromToken(data.token);
+          }
         } else {
           setStatus("error");
           setMessage(data.error || "Doğrulama başarısız.");
@@ -35,7 +37,7 @@ export default function VerifyPage() {
         setStatus("error");
         setMessage("Bağlantı hatası.");
       });
-  }, [token, refreshUser]);
+  }, [token, establishSessionFromToken]);
 
   return (
     <main className="flex min-h-[60vh] flex-col items-center justify-center px-4">

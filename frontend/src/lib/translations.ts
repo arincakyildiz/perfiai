@@ -118,17 +118,19 @@ export const translations = {
       cancel: "İptal",
       sendCode: "Kod gönder",
       code: "Giriş kodu",
-      codeHint: "E-postanıza 6 haneli giriş kodu göndereceğiz.",
+      codeHint:
+        "E-postanıza 6 haneli giriş kodu göndeririz. Kod 3 dakika geçerlidir; süre bitince yeni kod isteyebilirsiniz.",
       codeSent: "Kod gönderildi:",
       remember: "Beni hatırla (2 hafta)",
       back: "Geri",
       registerHint:
-        "Kayıt olduktan sonra 2 hafta boyunca her girişte e-posta kodu girmeniz gerekmez. İsterseniz yine de «Giriş» sekmesinden kod ile giriş yapabilirsiniz.",
+        "Kayıt sonrası önce e-postanızdaki bağlantıyı açın. Doğruladıktan sonra «Giriş» sekmesinden kod isteyebilir veya (doğrulama sayfasından) otomatik giriş yapılmış olur. Daha sonra «Beni hatırla» ile 2 haftaya kadar kod gerekmez.",
       registerTitle: "Hesap oluştur",
       registerSubtitle:
         "Puan vermek ve yorum yazmak için ücretsiz bir hesap açın. Şifre tutmuyoruz; güvenliğiniz için girişte e-posta kodu kullanılır (kayıtlı kullanıcılar için 2 haftaya kadar atlanabilir).",
       registerBenefit1: "Parfümleri puanlayın ve yorum bırakın",
-      registerBenefit2: "2 hafta boyunca tek tıkla oturum (kayıt sonrası)",
+      registerBenefit2:
+        "Önce e-postandaki bağlantı ile doğrula; sonra giriş kodu veya oturumla devam et",
       registerBenefit3: "Verileriniz yalnızca hesabınız için kullanılır",
       registerContinue: "Devam",
       registerConfirmTitle: "Bilgileri doğrulayın",
@@ -147,9 +149,22 @@ export const translations = {
       verifyResend: "Doğrulama e-postası gönder",
       verifySent: "E-posta gönderildi",
       registerDoneClose: "Tamam",
+      codeEmailNotDelivered:
+        "E-posta sunucusu kodu iletemedi veya gecikti. Spam’i kontrol edin. Yerelde sarı kutudaki kodu kullanın; aşağıda SMTP hata özeti olabilir.",
+      smtpErrorLabel: "SMTP hata özeti (geliştirme)",
       devLoginCodeHint:
         "Sunucu e-posta göndermediyse (yerel geliştirme) giriş kodunuz:",
       openVerificationLink: "Doğrulama bağlantısını aç",
+      registerResendVerification: "Doğrulama e-postasını tekrar gönder",
+      registerResendBusy: "Gönderiliyor…",
+      registerResendCooldownHint:
+        "Yeni doğrulama e-postası istemek için kalan süre (3 dakikada bir):",
+      registerAfterVerifyHint:
+        "Doğrulama bağlantısı 3 dakika geçerlidir; süre dolarsa «Doğrulama e-postasını tekrar gönder» kullanın. Bağlantıya tıklayınca otomatik giriş yapılır, ardından «Giriş» sekmesinden kod ile de girebilirsiniz.",
+      resendVerificationFailed: "İstek başarısız. Biraz sonra tekrar deneyin.",
+      codeTimerLabel: "Kod geçerliliği",
+      codeExpiredHint: "Süre doldu. Yeni kod göndererek devam edin.",
+      resendLoginCode: "Yeni kod gönder",
     },
     perfume: {
       back: "← Tüm parfümlere dön",
@@ -414,17 +429,19 @@ export const translations = {
       cancel: "Cancel",
       sendCode: "Send code",
       code: "Login code",
-      codeHint: "We'll send a 6-digit code to your email.",
+      codeHint:
+        "We'll email you a 6-digit code. It's valid for 3 minutes; you can request a new one after it expires.",
       codeSent: "Code sent to:",
       remember: "Remember me (2 weeks)",
       back: "Back",
       registerHint:
-        "After signing up, you won't need an email code on each login for 2 weeks. You can still use the Login tab with a code anytime.",
+        "After signing up, open the link in your email first. Then use the Login tab for a code, or you may already be signed in from the verify page. «Remember me» can skip codes for up to 2 weeks.",
       registerTitle: "Create an account",
       registerSubtitle:
         "Rate perfumes and leave comments with a free account. We don't store passwords; sign-in uses email codes (registered users can skip codes for up to 2 weeks).",
       registerBenefit1: "Rate perfumes and post comments",
-      registerBenefit2: "Stay signed in for 2 weeks after registration",
+      registerBenefit2:
+        "Verify your email first, then sign in with a code or stay signed in",
       registerBenefit3: "Your data is used only for your account",
       registerContinue: "Continue",
       registerConfirmTitle: "Confirm your details",
@@ -443,9 +460,22 @@ export const translations = {
       verifyResend: "Resend verification email",
       verifySent: "Email sent",
       registerDoneClose: "Got it",
+      codeEmailNotDelivered:
+        "The mail server could not deliver the code (or it’s delayed). Check spam. On local dev use the yellow box code; an SMTP error summary may appear below.",
+      smtpErrorLabel: "SMTP error (development)",
       devLoginCodeHint:
         "If the server could not send email (local dev), your login code is:",
       openVerificationLink: "Open verification link",
+      registerResendVerification: "Resend verification email",
+      registerResendBusy: "Sending…",
+      registerResendCooldownHint:
+        "Time until you can request another email (once every 3 minutes):",
+      registerAfterVerifyHint:
+        "The verification link is valid for 3 minutes; if it expires, use “Resend verification email”. After you click the link you’ll be signed in; you can also use the Login tab with an email code later.",
+      resendVerificationFailed: "Request failed. Try again shortly.",
+      codeTimerLabel: "Code valid for",
+      codeExpiredHint: "Time’s up. Send a new code to continue.",
+      resendLoginCode: "Send new code",
     },
     perfume: {
       back: "← Back to all perfumes",

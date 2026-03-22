@@ -13,12 +13,42 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
+import dotenv from "dotenv";
+import {
+  buildVerificationEmailHtml,
+  buildVerificationEmailText,
+  buildLoginCodeEmailHtml,
+  buildLoginCodeEmailText,
+  normalizeEmailLocale,
+  verificationEmailSubject,
+  loginCodeEmailSubject,
+} from "./lib/emailTemplates.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// Ortam değişkenleri: önce proje kökü perfiai/.env, sonra backend/.env (üstüne yazar)
+dotenv.config({ path: join(__dirname, "..", ".env") });
+dotenv.config({ path: join(__dirname, ".env"), override: true });
+
 const JWT_SECRET = process.env.JWT_SECRET || "perfiai-dev-secret-change-in-prod";
 const SITE_URL = process.env.SITE_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+/** E-posta ile giriş kodunun geçerliliği (ms) */
+const LOGIN_CODE_TTL_MS = 3 * 60 * 1000;
+/** Kayıt doğrulama e-postasının tekrar istenmesi için minimum aralık (giriş kodu ile aynı: 3 dk) */
+const REGISTER_VERIFICATION_RESEND_COOLDOWN_MS = LOGIN_CODE_TTL_MS;
+/**
+ * E-posta doğrulama linkindeki token süresi (ms); üretimde giriş kodu ile aynı (3 dk).
+ * NODE_ENV=test iken TEST_EMAIL_VERIFICATION_TOKEN_TTL_MS ile API testlerinde kısaltılabilir.
+ */
+const _testEmailVerifyTtl =
+  process.env.NODE_ENV === "test" && process.env.TEST_EMAIL_VERIFICATION_TOKEN_TTL_MS != null
+    ? Number(process.env.TEST_EMAIL_VERIFICATION_TOKEN_TTL_MS)
+    : NaN;
+const EMAIL_VERIFICATION_TOKEN_TTL_MS =
+  Number.isFinite(_testEmailVerifyTtl) && _testEmailVerifyTtl >= 100
+    ? _testEmailVerifyTtl
+    : LOGIN_CODE_TTL_MS;
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
@@ -154,26 +184,96 @@ function saveLoginCodes() {
 }
 loginCodes = loadLoginCodes();
 
+/** { email: timestamp } — bu zamandan önce doğrulama e-postası yeniden istenemez */
+let registerVerificationResendNotBefore = {};
+
+function smtpEnvConfigured() {
+  const host = process.env.SMTP_HOST?.trim();
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS?.replace(/\s+/g, "").trim();
+  return !!(host && user && pass);
+}
+
 function createTransporter() {
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const host = process.env.SMTP_HOST?.trim();
+  const user = process.env.SMTP_USER?.trim();
+  // Uygulama şifreleri bazen "abcd efgh ..." boşluklu kopyalanır
+  const pass = process.env.SMTP_PASS?.replace(/\s+/g, "").trim();
   if (!host || !user || !pass) return null;
-  return nodemailer.createTransport({
+
+  const port = parseInt(process.env.SMTP_PORT || "587", 10);
+  const secure =
+    process.env.SMTP_SECURE === "1" || port === 465;
+
+  const requireTls =
+    !secure && process.env.SMTP_REQUIRE_TLS !== "0";
+
+  /** Antivirus / kurumsal proxy sertifika zincirini bozduğunda (yalnızca geliştirme) */
+  const relaxTlsVerify =
+    process.env.SMTP_TLS_REJECT_UNAUTHORIZED === "0" ||
+    process.env.SMTP_TLS_REJECT_UNAUTHORIZED === "false";
+
+  const transport = nodemailer.createTransport({
     host,
-    port: parseInt(process.env.SMTP_PORT || "587", 10),
-    secure: process.env.SMTP_SECURE === "1",
+    port,
+    secure,
     auth: { user, pass },
+    connectionTimeout: 25_000,
+    greetingTimeout: 20_000,
+    tls: {
+      minVersion: "TLSv1.2",
+      ...(relaxTlsVerify ? { rejectUnauthorized: false } : {}),
+    },
+    // 587 + STARTTLS (Gmail, Outlook). Yerel MailHog için: SMTP_REQUIRE_TLS=0
+    ...(requireTls ? { requireTLS: true } : {}),
   });
+
+  if (process.env.SMTP_DEBUG === "1") {
+    transport.set("debug", true);
+  }
+
+  return transport;
+}
+
+/** Üretimde asla; geliştirmede e-posta düşmezse API’de dev kodu / SMTP özeti dönmek için */
+function exposeEmailFallbackInApi() {
+  if (process.env.NODE_ENV === "production") return false;
+  return true;
 }
 
 function verificationUrlForToken(token) {
   return `${SITE_URL.replace(/\/$/, "")}/auth/verify?token=${encodeURIComponent(token)}`;
 }
 
-async function sendVerificationEmail(email, token) {
+function registerResponseMessage(emailSent, localeRaw) {
+  const loc = normalizeEmailLocale(localeRaw);
+  if (emailSent) {
+    return loc === "en"
+      ? "You're in! Open the email we sent and tap the link to verify your account (check spam too). Then you can sign in."
+      : "Kayıt başarılı. E-postanızdaki bağlantıya tıklayarak hesabınızı doğrulayın; ardından giriş yapabilirsiniz (spam klasörüne de bakın).";
+  }
+  return loc === "en"
+    ? "Your account was created, but we couldn't send the verification email. Check SMTP settings. In development you can use the link below."
+    : "Hesap oluşturuldu ancak doğrulama e-postası gönderilemedi. SMTP ayarlarını kontrol edin. Geliştirme ortamında aşağıdaki bağlantıyı kullanabilirsiniz.";
+}
+
+function sendLoginCodeResponseMessage(emailSent, localeRaw) {
+  const loc = normalizeEmailLocale(localeRaw);
+  if (emailSent) {
+    return loc === "en"
+      ? "We sent a sign-in code to your email (valid for 3 minutes)."
+      : "Giriş kodu e-postanıza gönderildi (3 dakika geçerli).";
+  }
+  return loc === "en"
+    ? "We generated a code but couldn't send the email (SMTP missing or error). In development you'll see the code below or in the server console."
+    : "Kod üretildi ancak e-posta gönderilemedi (SMTP yok veya hata). Geliştirme ortamında kod sunucu konsolunda veya aşağıda gösterilir.";
+}
+
+async function sendVerificationEmail(email, token, displayName, localeRaw) {
   const transporter = createTransporter();
   const verifyUrl = verificationUrlForToken(token);
+  const locale = normalizeEmailLocale(localeRaw);
+  const mailOpts = { name: displayName, locale };
   if (!transporter) {
     console.warn(
       "[Perfiai] SMTP yapılandırılmamış (SMTP_HOST / SMTP_USER / SMTP_PASS). Doğrulama e-postası gönderilmedi.\n" +
@@ -185,50 +285,55 @@ async function sendVerificationEmail(email, token) {
     await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
       to: email,
-      subject: "Perfiai - E-posta adresinizi doğrulayın",
-      html: `
-      <p>Merhaba,</p>
-      <p>Perfiai hesabınızı oluşturdunuz. E-posta adresinizi doğrulamak için aşağıdaki bağlantıya tıklayın:</p>
-      <p><a href="${verifyUrl}" style="color:#7c3aed;font-weight:bold">E-postamı doğrula</a></p>
-      <p>Veya bu linki tarayıcınıza kopyalayın: ${verifyUrl}</p>
-      <p>Bu link 24 saat geçerlidir.</p>
-      <p>— Perfiai</p>
-    `,
+      subject: verificationEmailSubject(locale),
+      text: buildVerificationEmailText(verifyUrl, mailOpts),
+      html: buildVerificationEmailHtml(verifyUrl, { siteUrl: SITE_URL, ...mailOpts }),
     });
     return true;
   } catch (err) {
+    const code = err?.code || err?.responseCode;
     console.error("[Perfiai] Doğrulama e-postası gönderilemedi:", err?.message || err);
+    if (code) console.error("         SMTP kodu:", code);
+    if (err?.response)
+      console.error("         Sunucu yanıtı:", String(err.response).slice(0, 500));
     console.warn(`         Bağlantı (manuel deneme): ${verifyUrl}`);
     return false;
   }
 }
 
-async function sendLoginCodeEmail(email, code) {
+/**
+ * @returns {{ sent: boolean, error?: string }}
+ */
+async function sendLoginCodeEmail(email, code, displayName, localeRaw) {
   const transporter = createTransporter();
+  const locale = normalizeEmailLocale(localeRaw);
+  const mailOpts = { name: displayName, locale };
   if (!transporter) {
+    const msg = "SMTP yapılandırılmamış (SMTP_HOST / SMTP_USER / SMTP_PASS)";
     console.warn(
-      "[Perfiai] SMTP yapılandırılmamış - giriş kodu e-postayla gönderilemedi.\n" +
+      `[Perfiai] ${msg} — giriş kodu e-postayla gönderilemedi.\n` +
         `         Yerel test kodu (${email}): ${code}`
     );
-    return false;
+    return { sent: false, error: msg };
   }
   try {
     await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER,
       to: email,
-      subject: "Perfiai - Giriş kodunuz",
-      html: `
-      <p>Merhaba,</p>
-      <p>Perfiai giriş kodunuz: <strong style="font-size:24px;letter-spacing:4px">${code}</strong></p>
-      <p>Bu kod 10 dakika geçerlidir.</p>
-      <p>— Perfiai</p>
-    `,
+      subject: loginCodeEmailSubject(locale),
+      text: buildLoginCodeEmailText(code, mailOpts),
+      html: buildLoginCodeEmailHtml(code, mailOpts),
     });
-    return true;
+    return { sent: true };
   } catch (err) {
-    console.error("[Perfiai] Giriş kodu e-postası gönderilemedi:", err?.message || err);
+    const smtpCode = err?.code || err?.responseCode;
+    const errMsg = typeof err?.message === "string" ? err.message : String(err);
+    console.error("[Perfiai] Giriş kodu e-postası gönderilemedi:", errMsg);
+    if (smtpCode) console.error("         SMTP kodu:", smtpCode);
+    if (err?.response)
+      console.error("         Sunucu yanıtı:", String(err.response).slice(0, 500));
     console.warn(`         Kod (${email}): ${code}`);
-    return false;
+    return { sent: false, error: errMsg };
   }
 }
 
@@ -1340,85 +1445,164 @@ app.get("/perfumes/:id", (req, res) => {
   res.json(enriched);
 });
 
-// POST /auth/register (Kaydet) — yeni hesap: verified=false, doğrulama e-postası (SMTP gerekli)
+// POST /auth/register — sadece yeni hesap; oturum (JWT) e-posta doğrulandıktan sonra verilir
 app.post("/auth/register", async (req, res) => {
-  const { email, name } = req.body || {};
+  const { email, name, locale: localeBody } = req.body || {};
   if (!email || typeof email !== "string") {
     return res.status(400).json({ error: "Email gerekli" });
   }
   const emailNorm = email.trim().toLowerCase();
   if (emailNorm.length < 3) return res.status(400).json({ error: "Geçerli email girin" });
-  let user = users.find((u) => u.email.toLowerCase() === emailNorm);
-  let isNewUser = false;
-  let verificationTokenForDev = null;
-  let emailSent = true;
-
-  if (!user) {
-    isNewUser = true;
-    user = {
-      id: String(Date.now()),
-      email: emailNorm,
-      name: (name || emailNorm.split("@")[0]).trim().slice(0, 50),
-      verified: false,
-      favoritePerfumeIds: [],
-    };
-    users.push(user);
-    saveUsers();
-    const verifyToken = crypto.randomBytes(32).toString("hex");
-    verificationTokenForDev = verifyToken;
-    verificationTokens[verifyToken] = {
-      userId: user.id,
-      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
-    };
-    saveVerificationTokens();
-    emailSent = await sendVerificationEmail(user.email, verifyToken);
+  const existing = users.find((u) => u.email.toLowerCase() === emailNorm);
+  if (existing) {
+    return res.status(409).json({
+      error:
+        "Bu e-posta adresi zaten kayıtlı. Giriş yapmak için «Giriş» sekmesini kullanın.",
+    });
   }
 
-  const verifiedFlag = user.verified === undefined ? true : !!user.verified;
-  const token = jwt.sign(
-    { id: user.id, email: user.email, name: user.name, verified: verifiedFlag },
-    JWT_SECRET,
-    { expiresIn: "14d" }
-  );
+  const locale = normalizeEmailLocale(localeBody);
 
-  const baseUser = { id: user.id, email: user.email, name: user.name, verified: verifiedFlag };
+  let verificationTokenForDev = null;
+  const user = {
+    id: String(Date.now()),
+    email: emailNorm,
+    name: (name || emailNorm.split("@")[0]).trim().slice(0, 50),
+    verified: false,
+    favoritePerfumeIds: [],
+    locale,
+  };
+  users.push(user);
+  saveUsers();
+  const verifyToken = crypto.randomBytes(32).toString("hex");
+  verificationTokenForDev = verifyToken;
+  verificationTokens[verifyToken] = {
+    userId: user.id,
+    expiresAt: Date.now() + EMAIL_VERIFICATION_TOKEN_TTL_MS,
+  };
+  saveVerificationTokens();
+  const emailSent = await sendVerificationEmail(user.email, verifyToken, user.name, user.locale);
+
   const payload = {
     ok: true,
-    token,
-    user: baseUser,
-    emailVerificationSent: isNewUser ? emailSent : undefined,
-    message: isNewUser
-      ? emailSent
-        ? "Kayıt başarılı. E-postanızdaki bağlantı ile adresinizi doğrulayın (spam klasörüne de bakın)."
-        : "Kayıt oluşturuldu ancak doğrulama e-postası gönderilemedi. Sunucuda SMTP ayarlarını kontrol edin veya «Doğrulama e-postasını tekrar gönder» kullanın."
-      : "Hoş geldiniz.",
+    pendingVerification: true,
+    emailVerificationSent: emailSent,
+    message: registerResponseMessage(emailSent, user.locale),
   };
 
-  if (isNewUser && !emailSent && process.env.NODE_ENV !== "production" && verificationTokenForDev) {
+  const includeDevLink =
+    verificationTokenForDev &&
+    (process.env.NODE_ENV === "test" ||
+      (process.env.NODE_ENV !== "production" && !emailSent));
+
+  if (includeDevLink) {
     payload.devVerificationUrl = verificationUrlForToken(verificationTokenForDev);
   }
 
+  const verificationResendNextAt = Date.now() + REGISTER_VERIFICATION_RESEND_COOLDOWN_MS;
+  registerVerificationResendNotBefore[emailNorm] = verificationResendNextAt;
+  payload.verificationResendNotBefore = verificationResendNextAt;
+
+  res.json(payload);
+});
+
+// POST /auth/resend-register-verification — oturum yokken; doğrulanmamış hesaba yeni link (e-posta ile)
+app.post("/auth/resend-register-verification", async (req, res) => {
+  const raw = (req.body?.email || "").trim().toLowerCase();
+  const localeBody = req.body?.locale;
+  if (!raw || raw.length < 3) {
+    return res.status(400).json({ error: "Geçerli e-posta girin" });
+  }
+  const user = users.find((u) => u.email === raw);
+  const genericOk = {
+    ok: true,
+    message:
+      "Bu adres kayıtlı ve doğrulanmamışsa yeni doğrulama e-postası gönderildi. Gelen kutusu ve spam klasörünü kontrol edin.",
+  };
+  if (!user) {
+    return res.json(genericOk);
+  }
+  const alreadyVerified = user.verified === undefined ? true : !!user.verified;
+  if (alreadyVerified) {
+    return res.json({
+      ok: true,
+      message: "Bu e-posta zaten doğrulanmış. «Giriş» sekmesinden giriş yapabilirsiniz.",
+    });
+  }
+  const nextAllowed = registerVerificationResendNotBefore[raw];
+  if (nextAllowed && Date.now() < nextAllowed) {
+    const retryAfterMs = nextAllowed - Date.now();
+    return res.status(429).json({
+      error: `Doğrulama e-postası çok sık istendi. ${Math.ceil(retryAfterMs / 1000)} saniye sonra tekrar deneyin.`,
+      retryAfterMs,
+      verificationResendNotBefore: nextAllowed,
+    });
+  }
+  const verifyToken = crypto.randomBytes(32).toString("hex");
+  verificationTokens[verifyToken] = {
+    userId: user.id,
+    expiresAt: Date.now() + EMAIL_VERIFICATION_TOKEN_TTL_MS,
+  };
+  saveVerificationTokens();
+  const mailLocale = normalizeEmailLocale(
+    typeof localeBody === "string" && localeBody.trim() !== "" ? localeBody : user.locale
+  );
+  const sent = await sendVerificationEmail(
+    user.email,
+    verifyToken,
+    user.name,
+    mailLocale
+  );
+  const verificationResendNextAt = Date.now() + REGISTER_VERIFICATION_RESEND_COOLDOWN_MS;
+  registerVerificationResendNotBefore[raw] = verificationResendNextAt;
+  const payload = {
+    ...genericOk,
+    emailSent: sent,
+    verificationResendNotBefore: verificationResendNextAt,
+  };
+  if (!sent && process.env.NODE_ENV !== "production") {
+    payload.devVerificationUrl = verificationUrlForToken(verifyToken);
+  }
   res.json(payload);
 });
 
 // POST /auth/send-code - Giriş kodu gönder
 app.post("/auth/send-code", async (req, res) => {
-  const { email } = req.body || {};
+  const { email, locale: localeBody } = req.body || {};
   if (!email || typeof email !== "string") return res.status(400).json({ error: "Email gerekli" });
   const emailNorm = email.trim().toLowerCase();
   const user = users.find((u) => u.email === emailNorm);
   if (!user) return res.status(404).json({ error: "Bu email ile kayıtlı hesap bulunamadı. Önce kayıt olun." });
+  const userVerified = user.verified === undefined ? true : !!user.verified;
+  if (!userVerified) {
+    return res.status(403).json({
+      error:
+        "Bu hesabın e-postası henüz doğrulanmamış. Kayıt e-postanızdaki bağlantıya tıklayın. Gerekirse kayıt ekranından «Doğrulama e-postasını tekrar gönder» kullanın.",
+    });
+  }
+  /** Şu an seçili site dili (istekte); yoksa kayıt sırasında kaydedilen dil */
+  const mailLocale = normalizeEmailLocale(
+    typeof localeBody === "string" && localeBody.trim() !== "" ? localeBody : user.locale
+  );
   const code = String(Math.floor(100000 + Math.random() * 900000));
-  loginCodes[emailNorm] = { code, expiresAt: Date.now() + 10 * 60 * 1000 };
+  const codeExpiresAt = Date.now() + LOGIN_CODE_TTL_MS;
+  loginCodes[emailNorm] = { code, expiresAt: codeExpiresAt };
   saveLoginCodes();
-  const sent = await sendLoginCodeEmail(emailNorm, code);
+  const { sent, error: smtpErr } = await sendLoginCodeEmail(
+    emailNorm,
+    code,
+    user.name,
+    mailLocale
+  );
+  const fallback = exposeEmailFallbackInApi();
   res.json({
     ok: true,
     emailSent: sent,
-    message: sent
-      ? "Giriş kodu e-postanıza gönderildi"
-      : "Kod üretildi ancak e-posta gönderilemedi (SMTP yok veya hata). Geliştirme ortamında kod sunucu konsolunda.",
-    ...(process.env.NODE_ENV !== "production" && !sent ? { devLoginCode: code } : {}),
+    codeExpiresAt,
+    codeValidSeconds: Math.round(LOGIN_CODE_TTL_MS / 1000),
+    message: sendLoginCodeResponseMessage(sent, mailLocale),
+    ...(fallback && !sent ? { devLoginCode: code } : {}),
+    ...(fallback && !sent && smtpErr ? { smtpErrorHint: smtpErr.slice(0, 400) } : {}),
   });
 });
 
@@ -1442,6 +1626,12 @@ app.post("/auth/verify-code", async (req, res) => {
   const user = users.find((u) => u.email === emailNorm);
   if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
   const verified = user.verified === undefined ? true : !!user.verified;
+  if (!verified) {
+    return res.status(403).json({
+      error:
+        "Önce e-posta adresinizi doğrulayın. Kayıt sırasında gönderilen bağlantıya tıklayın (spam klasörüne de bakın). Bağlantı gelmediyse «Doğrulama e-postasını tekrar gönder» kullanın.",
+    });
+  }
   const expiresIn = remember ? "14d" : "24h";
   const token = jwt.sign(
     { id: user.id, email: user.email, name: user.name, verified },
@@ -1474,7 +1664,29 @@ app.get("/auth/verify", (req, res) => {
   saveUsers();
   delete verificationTokens[token];
   saveVerificationTokens();
-  res.json({ ok: true, message: "E-posta adresiniz doğrulandı" });
+
+  const sessionToken = jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      verified: true,
+    },
+    JWT_SECRET,
+    { expiresIn: "14d" }
+  );
+
+  res.json({
+    ok: true,
+    message: "E-posta adresiniz doğrulandı. Giriş yapıldı.",
+    token: sessionToken,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      verified: true,
+    },
+  });
 });
 
 // POST /auth/resend-verification - Doğrulama e-postasını tekrar gönder (giriş gerekli)
@@ -1482,10 +1694,22 @@ app.post("/auth/resend-verification", requireAuth, async (req, res) => {
   const user = users.find((u) => u.id === req.user.id);
   if (!user) return res.status(404).json({ error: "Kullanıcı bulunamadı" });
   if (user.verified) return res.status(400).json({ error: "E-posta zaten doğrulanmış" });
+  const localeBody = req.body?.locale;
+  const mailLocale = normalizeEmailLocale(
+    typeof localeBody === "string" && localeBody.trim() !== "" ? localeBody : user.locale
+  );
   const verifyToken = crypto.randomBytes(32).toString("hex");
-  verificationTokens[verifyToken] = { userId: user.id, expiresAt: Date.now() + 24 * 60 * 60 * 1000 };
+  verificationTokens[verifyToken] = {
+    userId: user.id,
+    expiresAt: Date.now() + EMAIL_VERIFICATION_TOKEN_TTL_MS,
+  };
   saveVerificationTokens();
-  const sent = await sendVerificationEmail(user.email, verifyToken);
+  const sent = await sendVerificationEmail(
+    user.email,
+    verifyToken,
+    user.name,
+    mailLocale
+  );
   const payload = {
     ok: true,
     emailSent: sent,
@@ -1729,4 +1953,22 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Perfiai API: http://localhost:${PORT}`);
   console.log(`  GET /perfumes - ${perfumes.length} parfüm`);
+  if (smtpEnvConfigured()) {
+    console.log(
+      `[Perfiai] E-posta: SMTP etkin (${process.env.SMTP_HOST}, kullanıcı: ${process.env.SMTP_USER})`
+    );
+    if (
+      process.env.SMTP_TLS_REJECT_UNAUTHORIZED === "0" ||
+      process.env.SMTP_TLS_REJECT_UNAUTHORIZED === "false"
+    ) {
+      console.warn(
+        "[Perfiai] SMTP_TLS_REJECT_UNAUTHORIZED devre dışı — TLS sertifikası doğrulanmıyor. Yalnızca geliştirme için; üretimde kapatın."
+      );
+    }
+  } else {
+    console.warn(
+      "[Perfiai] E-posta kapalı: .env dosyasında SMTP_HOST, SMTP_USER, SMTP_PASS tanımlı değil.\n" +
+        "         Dosya yolu: perfiai/.env veya perfiai/backend/.env — sunucuyu değişiklikten sonra yeniden başlatın."
+    );
+  }
 });

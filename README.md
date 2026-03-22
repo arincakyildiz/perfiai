@@ -127,6 +127,19 @@ npm start
 - API: `http://localhost:3001`
 - `POST /ai-search` bu haliyle **heuristic** modda çalışır (OpenAI/ST yok); sonuçlar `tags` ve `reason` ile döner.
 
+### E-posta (giriş kodu / doğrulama)
+
+1. Proje kökünde `.env` oluştur: `.env.example` dosyasını kopyala (`perfiai/.env`).
+2. `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` doldur (Gmail için **uygulama şifresi**; normal hesap şifresi çalışmaz).
+3. Backend’i **yeniden başlat**. Açılışta konsolda `E-posta: SMTP etkin` görünmeli; aksi halde `.env` yolu veya değişkenler eksiktir.
+4. Hâlâ gitmiyorsa `SMTP_DEBUG=1` ekle, backend konsolundaki SMTP hata koduna bak. Geliştirmede kod ve doğrulama linki yine de konsola yazılır.
+5. Konsolda **self-signed certificate** / TLS zinciri hatası görürsen (antivirüs veya kurumsal ağ sık neden): yalnızca yerel deneme için `perfiai/.env` içine `SMTP_TLS_REJECT_UNAUTHORIZED=0` ekle, backend’i yeniden başlat. **Üretimde kullanma.**
+6. Uygulamada *«Hesap oluşturuldu ancak doğrulama e-postası gönderilemedi»* görürsen: SMTP bilgileri eksik/yanlış veya gönderim hata veriyor demektir; modaldeki **doğrulama bağlantısını** (geliştirme) veya konsoldaki URL’yi kullan; düzeltince **Tekrar gönder** dene.
+
+**SMTP teşhis:** `backend` klasöründe `npm run smtp-check` — bağlantıyı doğrular ve kendine test postası atar (isteğe bağlı alıcı: `npm run smtp-check -- diger@email.com`).
+
+**Süreler:** Giriş kodu ve kayıt doğrulama bağlantısı üretimde **3 dakika** geçerlidir. Bağlantı süresi dolarsa kayıt ekranından yeni doğrulama e-postası isteyin (`api.test` sunucusu `TEST_EMAIL_VERIFICATION_TOKEN_TTL_MS` ile daha kısa TTL kullanabilir).
+
 **Örnek istek:**
 
 ```bash

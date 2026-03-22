@@ -10,7 +10,9 @@ import { dirname, join } from "path";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, "..", "..");
-const API_URL = "http://localhost:3001";
+/** Geliştirici makinede 3001 doluysa eski sürece bağlanmamak için ayrı port */
+const TEST_PORT = process.env.TEST_PORT || "3199";
+const API_URL = `http://127.0.0.1:${TEST_PORT}`;
 
 let serverProcess = null;
 
@@ -36,7 +38,13 @@ async function runTests() {
   // Sunucuyu başlat
   serverProcess = spawn("node", ["server.js"], {
     cwd: join(PROJECT_ROOT, "backend"),
-    env: { ...process.env, PORT: "3001" },
+    env: {
+      ...process.env,
+      PORT: TEST_PORT,
+      NODE_ENV: "test",
+      // Doğrulama linki TTL testi için (üretimde 3 dk; burada ~5 sn)
+      TEST_EMAIL_VERIFICATION_TOKEN_TTL_MS: "5000",
+    },
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -125,8 +133,27 @@ async function runTests() {
         body: JSON.stringify({ email: testEmail, name: "Fav Test" }),
       });
       const regJson = await reg.json();
-      if (!reg.ok || !regJson.token) throw new Error("Kayıt başarısız");
-      const authH = { Authorization: `Bearer ${regJson.token}` };
+      if (!reg.ok) {
+        throw new Error(`Kayıt HTTP ${reg.status}: ${JSON.stringify(regJson)}`);
+      }
+      if (!regJson.pendingVerification) {
+        throw new Error(
+          `Kayıt cevabı eksik: ${JSON.stringify(regJson)} (NODE_ENV test ve güncel server gerekli)`
+        );
+      }
+      const devUrl = regJson.devVerificationUrl;
+      if (!devUrl || typeof devUrl !== "string") {
+        throw new Error("Test için devVerificationUrl dönmedi (NODE_ENV=test olmalı)");
+      }
+      const tokenMatch = devUrl.match(/token=([^&]+)/);
+      const verifyToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
+      if (!verifyToken) throw new Error("Doğrulama token URL'den okunamadı");
+      const ver = await fetch(
+        `${API_URL}/auth/verify?token=${encodeURIComponent(verifyToken)}`
+      );
+      const verJson = await ver.json();
+      if (!ver.ok || !verJson.token) throw new Error("E-posta doğrulama / token alınamadı");
+      const authH = { Authorization: `Bearer ${verJson.token}` };
 
       let res = await fetch(`${API_URL}/me/favorites`, { headers: authH });
       let j = await res.json();
@@ -152,6 +179,42 @@ async function runTests() {
       passed++;
     } catch (e) {
       console.log("✗ /me/favorites CRUD -", e.message);
+      failed++;
+    }
+
+    // GET /auth/verify — süresi dolmuş doğrulama linki (test TTL 5 sn)
+    try {
+      const testEmail = `expiry_${Date.now()}@example.invalid`;
+      const reg = await fetch(`${API_URL}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: testEmail, name: "Expiry Test" }),
+      });
+      const regJson = await reg.json();
+      if (!reg.ok) throw new Error(`Kayıt HTTP ${reg.status}: ${JSON.stringify(regJson)}`);
+      const devUrl = regJson.devVerificationUrl;
+      if (!devUrl || typeof devUrl !== "string") {
+        throw new Error("devVerificationUrl yok (NODE_ENV=test gerekli)");
+      }
+      const tokenMatch = devUrl.match(/token=([^&]+)/);
+      const verifyToken = tokenMatch ? decodeURIComponent(tokenMatch[1]) : null;
+      if (!verifyToken) throw new Error("Token URL'den okunamadı");
+      await new Promise((r) => setTimeout(r, 5500));
+      const ver = await fetch(
+        `${API_URL}/auth/verify?token=${encodeURIComponent(verifyToken)}`
+      );
+      const verJson = await ver.json();
+      if (ver.ok || ver.status !== 400) {
+        throw new Error(`Beklenen 400 (süresi dolmuş), alınan ${ver.status}: ${JSON.stringify(verJson)}`);
+      }
+      const err = String(verJson.error || "");
+      if (!err.includes("süresi") && !err.includes("dolmuş")) {
+        throw new Error(`Beklenen süre dolması mesajı: ${JSON.stringify(verJson)}`);
+      }
+      console.log("✓ GET /auth/verify - süresi dolmuş link reddedilir");
+      passed++;
+    } catch (e) {
+      console.log("✗ /auth/verify süre dolması -", e.message);
       failed++;
     }
 

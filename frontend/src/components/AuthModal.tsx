@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import {
   authPrimaryCtaClassName,
   authSecondaryCtaClassName,
 } from "@/lib/authUi";
+import { apiUrl } from "@/lib/api";
 
 type AuthModalProps = {
   open: boolean;
@@ -24,8 +25,16 @@ const tabActive =
 const tabInactive =
   "text-stone-600 hover:scale-[1.02] hover:bg-white/80 hover:text-violet-700 hover:shadow-sm active:scale-[0.98] dark:text-zinc-400 dark:hover:bg-zinc-700/90 dark:hover:text-violet-200";
 
+const LOGIN_CODE_FALLBACK_MS = 3 * 60 * 1000;
+
+function formatLoginCodeCountdown(totalSeconds: number) {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProps) {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const { sendLoginCode, verifyCode, register } = useAuth();
   const [tab, setTab] = useState<"login" | "register">(initialTab);
   const [step, setStep] = useState<"email" | "code">("email");
@@ -40,9 +49,42 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
   const [loading, setLoading] = useState(false);
   const [registerDone, setRegisterDone] = useState<{
     message: string;
+    email: string;
     devUrl?: string;
   } | null>(null);
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendNote, setResendNote] = useState<string | null>(null);
   const [devLoginCode, setDevLoginCode] = useState<string | null>(null);
+  const [codeExpiresAt, setCodeExpiresAt] = useState<number | null>(null);
+  const [codeTick, setCodeTick] = useState(0);
+  const [resendLoginCodeBusy, setResendLoginCodeBusy] = useState(false);
+  const [loginSmtpHint, setLoginSmtpHint] = useState<string | null>(null);
+  const [loginCodeEmailSent, setLoginCodeEmailSent] = useState<boolean | null>(null);
+  /** Kayıt sonrası doğrulama e-postasını tekrar istemek için sunucu zamanı (ms) */
+  const [registerResendNotBefore, setRegisterResendNotBefore] = useState<number | null>(null);
+  const [registerResendCooldownTick, setRegisterResendCooldownTick] = useState(0);
+
+  const loginCodeSecondsLeft = useMemo(() => {
+    if (codeExpiresAt == null) return 0;
+    return Math.max(0, Math.ceil((codeExpiresAt - Date.now()) / 1000));
+  }, [codeExpiresAt, codeTick]);
+
+  useEffect(() => {
+    if (tab !== "login" || step !== "code" || codeExpiresAt == null) return;
+    const id = setInterval(() => setCodeTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [tab, step, codeExpiresAt]);
+
+  const registerResendSecondsLeft = useMemo(() => {
+    if (registerDone == null || registerResendNotBefore == null) return 0;
+    return Math.max(0, Math.ceil((registerResendNotBefore - Date.now()) / 1000));
+  }, [registerDone, registerResendNotBefore, registerResendCooldownTick]);
+
+  useEffect(() => {
+    if (registerDone == null || registerResendNotBefore == null) return;
+    const id = setInterval(() => setRegisterResendCooldownTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, [registerDone, registerResendNotBefore]);
 
   useEffect(() => {
     if (!open) return;
@@ -54,7 +96,14 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
     setEmailConfirm("");
     setAcceptTerms(false);
     setRegisterDone(null);
+    setResendNote(null);
+    setResendBusy(false);
     setDevLoginCode(null);
+    setCodeExpiresAt(null);
+    setResendLoginCodeBusy(false);
+    setRegisterResendNotBefore(null);
+    setLoginSmtpHint(null);
+    setLoginCodeEmailSent(null);
   }, [open, initialTab]);
 
   async function handleSendCode(e: React.FormEvent) {
@@ -62,11 +111,38 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
     setError("");
     setDevLoginCode(null);
     setLoading(true);
-    const r = await sendLoginCode(email);
+    const r = await sendLoginCode(email, locale);
     setLoading(false);
     if (r.ok) {
+      setLoginCodeEmailSent(r.emailSent !== false);
+      setLoginSmtpHint(
+        typeof r.smtpErrorHint === "string" && r.smtpErrorHint.trim()
+          ? r.smtpErrorHint.trim()
+          : null
+      );
       setDevLoginCode(r.devLoginCode ?? null);
+      setCodeExpiresAt(r.codeExpiresAt ?? Date.now() + LOGIN_CODE_FALLBACK_MS);
       setStep("code");
+    } else setError(r.error || "");
+  }
+
+  async function handleResendLoginCode() {
+    if (resendLoginCodeBusy || loading) return;
+    setError("");
+    setDevLoginCode(null);
+    setResendLoginCodeBusy(true);
+    const r = await sendLoginCode(email, locale);
+    setResendLoginCodeBusy(false);
+    if (r.ok) {
+      setLoginCodeEmailSent(r.emailSent !== false);
+      setLoginSmtpHint(
+        typeof r.smtpErrorHint === "string" && r.smtpErrorHint.trim()
+          ? r.smtpErrorHint.trim()
+          : null
+      );
+      setDevLoginCode(r.devLoginCode ?? null);
+      setCode("");
+      setCodeExpiresAt(r.codeExpiresAt ?? Date.now() + LOGIN_CODE_FALLBACK_MS);
     } else setError(r.error || "");
   }
 
@@ -108,14 +184,75 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
       return;
     }
     setLoading(true);
-    const r = await register(email.trim(), name.trim());
+    const r = await register(email.trim(), name.trim(), locale);
     setLoading(false);
     if (r.ok) {
+      setResendNote(null);
       setRegisterDone({
         message: r.message || "",
+        email: email.trim().toLowerCase(),
         devUrl: r.devVerificationUrl,
       });
+      setRegisterResendNotBefore(
+        typeof r.verificationResendNotBefore === "number"
+          ? r.verificationResendNotBefore
+          : Date.now() + LOGIN_CODE_FALLBACK_MS
+      );
     } else setError(r.error || "");
+  }
+
+  async function handleResendRegisterVerification() {
+    if (!registerDone || resendBusy) return;
+    setResendNote(null);
+    setResendBusy(true);
+    let nextNotBefore = Date.now() + LOGIN_CODE_FALLBACK_MS;
+    try {
+      const res = await fetch(apiUrl("/auth/resend-register-verification"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: registerDone.email, locale }),
+      });
+      let data: Record<string, unknown> = {};
+      try {
+        data = (await res.json()) as Record<string, unknown>;
+      } catch {
+        data = {};
+      }
+      if (res.status === 429) {
+        if (typeof data.verificationResendNotBefore === "number") {
+          nextNotBefore = data.verificationResendNotBefore;
+        } else if (typeof data.retryAfterMs === "number") {
+          nextNotBefore = Date.now() + data.retryAfterMs;
+        }
+        setResendNote(
+          typeof data.error === "string" && data.error
+            ? data.error
+            : t("auth.resendVerificationFailed")
+        );
+      } else if (!res.ok) {
+        setResendNote(
+          typeof data.error === "string" && data.error
+            ? data.error
+            : t("auth.resendVerificationFailed")
+        );
+      } else {
+        setResendNote(
+          typeof data.message === "string" ? data.message : t("auth.verifySent")
+        );
+        if (typeof data.verificationResendNotBefore === "number") {
+          nextNotBefore = data.verificationResendNotBefore;
+        }
+        const devUrl = data.devVerificationUrl;
+        if (typeof devUrl === "string" && devUrl) {
+          setRegisterDone((prev) => (prev ? { ...prev, devUrl } : prev));
+        }
+      }
+    } catch {
+      setResendNote(t("auth.resendVerificationFailed"));
+    } finally {
+      setRegisterResendNotBefore(nextNotBefore);
+      setResendBusy(false);
+    }
   }
 
   function switchTab(newTab: "login" | "register") {
@@ -128,6 +265,11 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
     setAcceptTerms(false);
     setRegisterDone(null);
     setDevLoginCode(null);
+    setCodeExpiresAt(null);
+    setResendLoginCodeBusy(false);
+    setRegisterResendNotBefore(null);
+    setLoginSmtpHint(null);
+    setLoginCodeEmailSent(null);
   }
 
   if (!open) return null;
@@ -176,11 +318,41 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
                   {t("auth.openVerificationLink")}
                 </a>
               ) : null}
+              {registerResendSecondsLeft > 0 ? (
+                <div className="rounded-xl border border-stone-200 bg-stone-50/90 px-4 py-3 text-sm dark:border-zinc-600 dark:bg-zinc-800/60">
+                  <p className="flex flex-wrap items-baseline justify-between gap-2 text-stone-700 dark:text-zinc-200">
+                    <span className="text-left font-medium">{t("auth.registerResendCooldownHint")}</span>
+                    <span
+                      className="font-mono text-lg font-semibold tabular-nums text-violet-700 dark:text-violet-300"
+                      aria-live="polite"
+                    >
+                      {formatLoginCodeCountdown(registerResendSecondsLeft)}
+                    </span>
+                  </p>
+                </div>
+              ) : null}
+              <button
+                type="button"
+                disabled={resendBusy || registerResendSecondsLeft > 0}
+                className={`${authSecondaryCtaClassName} w-full border-violet-200 text-violet-800 dark:border-violet-600 dark:text-violet-200`}
+                onClick={() => void handleResendRegisterVerification()}
+              >
+                {resendBusy
+                  ? t("auth.registerResendBusy")
+                  : t("auth.registerResendVerification")}
+              </button>
+              {resendNote ? (
+                <p className="text-xs text-stone-600 dark:text-zinc-400">{resendNote}</p>
+              ) : null}
+              <p className="text-xs text-stone-500 dark:text-zinc-500">
+                {t("auth.registerAfterVerifyHint")}
+              </p>
               <button
                 type="button"
                 className={`${authPrimaryCtaClassName} w-full`}
                 onClick={() => {
                   setRegisterDone(null);
+                  setRegisterResendNotBefore(null);
                   onClose();
                 }}
               >
@@ -361,6 +533,23 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
             <p className="text-sm text-stone-700 dark:text-zinc-300">
               {t("auth.codeSent")} <strong className="text-stone-900 dark:text-zinc-100">{email}</strong>
             </p>
+            {(loginCodeEmailSent === false || loginSmtpHint) && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50/90 px-4 py-3 text-left text-sm text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/25 dark:text-rose-100">
+                {loginCodeEmailSent === false ? (
+                  <p className="font-medium leading-snug">{t("auth.codeEmailNotDelivered")}</p>
+                ) : null}
+                {loginSmtpHint ? (
+                  <div className={loginCodeEmailSent === false ? "mt-2" : ""}>
+                    <p className="text-xs font-semibold uppercase tracking-wide opacity-90">
+                      {t("auth.smtpErrorLabel")}
+                    </p>
+                    <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words font-mono text-xs opacity-95">
+                      {loginSmtpHint}
+                    </pre>
+                  </div>
+                ) : null}
+              </div>
+            )}
             {devLoginCode ? (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left dark:border-amber-900/50 dark:bg-amber-950/30">
                 <p className="text-xs font-medium text-amber-900 dark:text-amber-100">
@@ -385,6 +574,31 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
                 className={`${inputClass} text-center text-lg tracking-[0.5em]`}
               />
             </div>
+            <div className="rounded-xl border border-stone-200 bg-stone-50/90 px-4 py-3 text-sm dark:border-zinc-600 dark:bg-zinc-800/60">
+              {loginCodeSecondsLeft > 0 ? (
+                <p className="flex flex-wrap items-baseline justify-between gap-2 text-stone-700 dark:text-zinc-200">
+                  <span className="font-medium">{t("auth.codeTimerLabel")}</span>
+                  <span
+                    className="font-mono text-lg font-semibold tabular-nums text-violet-700 dark:text-violet-300"
+                    aria-live="polite"
+                  >
+                    {formatLoginCodeCountdown(loginCodeSecondsLeft)}
+                  </span>
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-stone-600 dark:text-zinc-400">{t("auth.codeExpiredHint")}</p>
+                  <button
+                    type="button"
+                    disabled={resendLoginCodeBusy}
+                    onClick={() => void handleResendLoginCode()}
+                    className={`${authSecondaryCtaClassName} w-full border-violet-200 text-violet-800 dark:border-violet-600 dark:text-violet-200`}
+                  >
+                    {resendLoginCodeBusy ? "…" : t("auth.resendLoginCode")}
+                  </button>
+                </div>
+              )}
+            </div>
             <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-transparent px-2 py-2 transition-all duration-200 hover:border-violet-200/80 hover:bg-violet-50/60 dark:hover:border-violet-500/30 dark:hover:bg-violet-950/25">
               <input
                 type="checkbox"
@@ -403,6 +617,9 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
                   setError("");
                   setCode("");
                   setDevLoginCode(null);
+                  setCodeExpiresAt(null);
+                  setLoginSmtpHint(null);
+                  setLoginCodeEmailSent(null);
                 }}
                 className={authSecondaryCtaClassName}
               >
@@ -410,7 +627,7 @@ export function AuthModal({ open, onClose, initialTab = "login" }: AuthModalProp
               </button>
               <button
                 type="submit"
-                disabled={loading || code.length !== 6}
+                disabled={loading || code.length !== 6 || loginCodeSecondsLeft === 0}
                 className={`${authPrimaryCtaClassName} flex-1 disabled:hover:translate-y-0 disabled:hover:shadow-md`}
               >
                 {loading ? "…" : t("auth.login")}

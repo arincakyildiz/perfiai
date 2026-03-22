@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 export function VerifiedBanner() {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const { user, resendVerification } = useAuth();
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -15,7 +15,7 @@ export function VerifiedBanner() {
   async function handleResend() {
     setLoading(true);
     setSent(false);
-    const r = await resendVerification();
+    const r = await resendVerification(locale);
     setLoading(false);
     if (r.ok) setSent(true);
   }
