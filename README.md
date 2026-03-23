@@ -1,30 +1,30 @@
-# Perfiai — AI Destekli Parfüm Öneri Sistemi
+# Perfiai — AI-Powered Perfume Recommendation System
 
-Kullanıcı doğal dil ile parfüm isteği yazar; AI (heuristic veya embedding tabanlı) en uygun önerileri verir. Türkçe ve İngilizce desteklenir.
+Users describe the perfume they want in natural language, and the AI engine (heuristic or embedding-based) returns the best matches. Both Turkish and English are supported.
 
 ## 🎯 Scope (MVP)
 
-- **880+ parfüm** veritabanı (`data/perfumes.json`)
-- **AI arama** — doğal dil sorgusu, filtre (gender, season), skor + açıklama (`reason`) + etiketler (`tags`)
-- **İki mod:** heuristic (parasız, her yerde) veya SentenceTransformers embedding (lokal Python servisi ile)
-- Detay sayfası, login, ödeme, affiliate **yok** (başlangıçta)
+- **3592 perfumes** in the catalog (`data/perfumes.json`)
+- **AI search** with natural language query, filters (`gender`, `season`), score + explanation (`reason`) + tags (`tags`)
+- **Two search modes:** heuristic (free, works everywhere) or SentenceTransformers embeddings (local Python service)
+- Web app includes sign-up/sign-in (code-based), email verification, ratings, comments, and favorites
 
 ---
 
-## 📁 Proje Yapısı
+## 📁 Project Structure
 
-```
+```text
 perfiai/
 ├── backend/                    # Node + Express API
 │   ├── server.js               # /perfumes, /ai-search, /perfumes/:id, /stats
-│   ├── test/api.test.js        # API testleri
+│   ├── test/api.test.js        # API tests
 │   └── package.json
 ├── data/
-│   ├── perfumes.json           # 880+ parfüm
-│   └── perfume_embeddings_st.json  # ST ile üretilmiş vektörler (embedding modu için)
+│   ├── perfumes.json           # 3592 perfumes
+│   └── perfume_embeddings_st.json  # ST-generated vectors (embedding mode)
 ├── scripts/
-│   ├── generate_sentence_embeddings.py  # Parfüm embedding'lerini üretir
-│   ├── embedding_server.py              # FastAPI: query → embedding (ST)
+│   ├── generate_sentence_embeddings.py  # Builds perfume embeddings
+│   ├── embedding_server.py              # FastAPI: query -> embedding (ST)
 │   ├── expand_database.py
 │   ├── generate_perfumes.py
 │   ├── use_scraped_data.py
@@ -33,90 +33,95 @@ perfiai/
 │   ├── scrape_fragrantica.py
 │   ├── urls.txt
 │   └── requirements.txt
-├── .env.example                # Ortam değişkenleri şablonu
-├── render.yaml                 # Render.com deploy
-├── railway.toml                # Railway deploy
-├── Dockerfile                  # Docker deploy
+├── .env.example                # Environment template
+├── render.yaml                 # Render deployment
+├── railway.toml                # Railway deployment
+├── Dockerfile                  # Docker deployment
 └── README.md
 ```
 
 ---
 
-## 🛍️ Sephora’dan parfüm ekleme / güncelleme
+## 🛍️ Add / Update Perfumes from Sephora
 
-Sephora US **liste API**’si kullanılır (ürün sayfası API’si ağır / kısıtlı olduğu için nota piramidi ve accord’lar listede yok; bu alanlar şimdilik şablonda boş veya genel değerlerle doldurulur).
+Sephora US **listing API** is used (product-detail API is heavy/restricted; note pyramid and accords are not fully available there, so some fields may be blank or heuristic-filled initially).
 
-- **Ana kaynak:** `Fragrance` vitrini (`cat160006`, ~1827 satır) — vitrinde görünen her ürün satırı işlenir.
-- **Cinsiyet:** Kadın / erkek / unisex alt kategorilerinden `productId` eşlemesi; eşleşmeyenler `unisex`.
-- **Görsel:** `image_url` Sephora CDN (`productimages/sku/...`, `imwidth=497`).
-- **Ek alanlar:** `sephoraProductId`, `sephoraSkuId`, `sephoraReviewCount`, `sephoraListPrice`, `source: "sephora"`.
-- Varsayılan olarak **hediye seti / numune / mum-ev kokusu** isimleri filtrelenir; setleri de almak için `--include-gift-sets`.
+- **Primary source:** `Fragrance` showcase (`cat160006`, ~1827 rows)
+- **Gender mapping:** via women/men/unisex category `productId` matching; unmatched defaults to `unisex`
+- **Image:** `image_url` from Sephora CDN (`productimages/sku/...`, `imwidth=497`)
+- **Extra fields:** `sephoraProductId`, `sephoraSkuId`, `sephoraReviewCount`, `sephoraListPrice`, `source: "sephora"`
+- Gift sets / samples / home-scent products are filtered by default; use `--include-gift-sets` to include
 
 ```bash
 node scripts/import_sephora_perfumes.mjs --dry-run
 node scripts/import_sephora_perfumes.mjs
-node scripts/import_sephora_perfumes.mjs --include-gift-sets   # setler dahil
+node scripts/import_sephora_perfumes.mjs --include-gift-sets
 
-# Mevcut Sephora kayıtlarını vitrin listesiyle eşleştirip SKU / yorum / görsel güncelle
+# Refresh SKU / reviews / images by matching current Sephora listings
 node scripts/enrich_sephora_listing.mjs --dry-run
 node scripts/enrich_sephora_listing.mjs
 ```
 
-**Embedding** modunda liste büyüdükçe `perfume_embeddings_st.json` dosyasını yeniden üretmen gerekir.
+If your dataset grows and you use embedding mode, regenerate `perfume_embeddings_st.json`.
 
-### Sephora satırlarını Fragrantica ile doldurma (nota / accord / yıl / açıklama)
+### Fill Sephora Rows from Fragrantica (notes / accords / year / description)
 
-Liste API’sinde olmayan alanlar için **Fragrantica** üzerinden marka sayfası + parfüm sayfası eşleştirilir (`cloudscraper` önerilir).
+For fields missing from Sephora listings, the script matches Fragrantica brand/perfume pages (`cloudscraper` recommended).
 
 ```bash
 pip install cloudscraper beautifulsoup4
 python -u scripts/enrich_sephora_from_fragrantica.py --dry-run --limit 10
-python -u scripts/enrich_sephora_from_fragrantica.py --resume   # kesintiden sonra
-# Sadece year alanı boş Sephora satırları (placeholder temizliğinden sonra):
+python -u scripts/enrich_sephora_from_fragrantica.py --resume
+# Process only rows still missing year:
 python -u scripts/enrich_sephora_from_fragrantica.py --resume --only-missing-year
 ```
 
-- Her başarılı kayıt `data/perfumes.json` dosyasına yazılır; `fragranticaUrl` eklenir.
-- Fragrantica sık **429 (rate limit)** verebilir; script bekleyip tekrar dener. IP geçici bloklanırsa **30–60 dk** bekleyip `python -u scripts/enrich_sephora_from_fragrantica.py --resume …` ile devam edin veya ilk istekten önce bekleme: `--start-sleep 120`.
-- **Fragrantica olmadan yıl:** `year` alanı boş Sephora satırlarında metinde 4 haneli yıl varsa: `node scripts/fill_sephora_missing_year_from_text.mjs`
-- Sephora’da olup Fragrantica’da sayfası olmayan / isim eşleşmeyen ürünler için script sonunda **heuristic** mod devreye girer: ürün adındaki kelimelerden accord + üst nota satırları üretir (`enrichmentSource`: `fragrantica` | `heuristic`).
-- Sadece sezgisel doldurma (HTTP yok):  
+- Each successful row is written into `data/perfumes.json` with `fragranticaUrl`
+- Fragrantica may return **429** often; script retries with backoff
+- If IP is temporarily blocked, wait **30-60 min** and continue with `--resume`
+- Optional initial wait: `--start-sleep 120`
+- **Year without Fragrantica:** for Sephora rows with empty `year`, parse 4-digit years from text:
+  `node scripts/fill_sephora_missing_year_from_text.mjs`
+- If no Fragrantica page/name match exists, script falls back to **heuristic** enrichment (`enrichmentSource`: `fragrantica` | `heuristic`)
+- Heuristic-only mode (no HTTP):
   `python -u scripts/enrich_sephora_from_fragrantica.py --heuristic-only`
 
-**Elle doğrulanmış notalar (marka / perakende / kamuya açık piramit):** `data/sephora_manual_overrides.json` içine `sephoraProductId` anahtarıyla kayıt ekle; sonra:
+**Manual verified notes** (brand/retailer/public pyramids): add entries into `data/sephora_manual_overrides.json` keyed by `sephoraProductId`, then run:
 
 ```bash
 node scripts/merge_sephora_overrides.mjs
 ```
 
-Tam piramit + `short_description` verdiğinde `enrichmentSource` → `manual` olur ve `short_description_tr` yeniden üretilir. **Sadece `{ "year": 2024 }` gibi yıl** verirsen sadece `year` güncellenir; mevcut `enrichmentSource` / açıklamalar korunur.
+If full pyramid + `short_description` exists, `enrichmentSource` becomes `manual` and `short_description_tr` is regenerated.  
+If you only provide a year payload like `{ "year": 2024 }`, only `year` is updated and existing descriptions/source stay unchanged.
 
-**Sephora’da kalan `year: 2026` placeholder:** İsim / kısa açıklamada geçen 4 haneli yıl (1980–2025) varsa `year` buna çekilir; metinde yıl yoksa `year` alanı kaldırılır (detay sayfasında yanlış yıl gösterilmez).
+**Remaining `year: 2026` placeholders:** if a 4-digit year (1980-2025) appears in name/description, it is used; otherwise `year` is removed to avoid showing incorrect info.
 
 ```bash
 node scripts/fix_sephora_placeholder_years.mjs --dry-run
 node scripts/fix_sephora_placeholder_years.mjs
 ```
 
-Önce `merge_sephora_overrides` çalıştırıp SKU’lara elle girilen `year` değerlerini yazdırın; sonra bu script’i kullanın.
+Run `merge_sephora_overrides` first so manually entered years are preserved.
 
-`sephora_manual_overrides.json` dosyasını Fragrantica script’i de okur: Fragrantica URL’si olmayan satırlarda `--heuristic-only` çalıştırınca bu kayıtlar keyword tahmininin önüne geçer. Yılı hâlâ boş kalan Sephora satırları için `--resume --only-missing-year` ile sadece o kuyruk işlenir (yıl metinde yoksa Fragrantica’dan gelir).
+`sephora_manual_overrides.json` is also respected by the Fragrantica script; on rows with no Fragrantica URL, overrides win over keyword heuristics.
 
-### Sephora heuristic → gerçek piramit (marka kataloğu, ~400+ koku)
+### Sephora Heuristic -> Real Pyramid (Brand Catalog, ~400+ scents)
 
-Kamuya açık / marka piramitlerinden derlenen **`data/sephora_brand_pyramids.json`** dosyası `scripts/sephora_catalog_fragments.py` + `scripts/emit_sephora_brand_pyramids.py` ile üretilir. Sephora satırında `enrichmentSource === "heuristic"` ve `fragranticaUrl` yokken marka + ürün adı eşleştirilir; eşleşirse `enrichmentSource` → **`catalog`** olur.
+`data/sephora_brand_pyramids.json` is generated from public/brand pyramids via `scripts/sephora_catalog_fragments.py` + `scripts/emit_sephora_brand_pyramids.py`.
+When `enrichmentSource === "heuristic"` and `fragranticaUrl` is missing, rows are matched by brand + product name; successful matches become `enrichmentSource: "catalog"`.
 
 ```bash
-python scripts/emit_sephora_brand_pyramids.py   # JSON’u yenile
+python scripts/emit_sephora_brand_pyramids.py
 node scripts/enrich_sephora_from_brand_catalog.mjs --dry-run
 node scripts/enrich_sephora_from_brand_catalog.mjs
 ```
 
-Yeni koku eklemek için `scripts/sephora_catalog_fragments.py` içindeki `_MORE` / `_MORE3` bloklarına marka altında anahtar ekleyip yukarıdaki komutları çalıştır. `data/sephora_heuristic_targets.json` (sadece liste) gerekirse `data/perfumes.json` üzerinden yeniden üretilebilir.
+To add new scents, edit `_MORE` / `_MORE3` blocks in `scripts/sephora_catalog_fragments.py`, then run the commands above.
 
 ---
 
-## 🚀 Hızlı Başlangıç (sadece backend, parasız)
+## 🚀 Quick Start (Backend only, free mode)
 
 ```bash
 cd backend
@@ -125,50 +130,57 @@ npm start
 ```
 
 - API: `http://localhost:3001`
-- `POST /ai-search` bu haliyle **heuristic** modda çalışır (OpenAI/ST yok); sonuçlar `tags` ve `reason` ile döner.
+- `POST /ai-search` runs in **heuristic** mode if OpenAI/ST is not configured
 
-### E-posta (giriş kodu / doğrulama)
+### Email (login code / verification)
 
-1. Proje kökünde `.env` oluştur: `.env.example` dosyasını kopyala (`perfiai/.env`).
-2. `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` doldur (Gmail için **uygulama şifresi**; normal hesap şifresi çalışmaz).
-3. Backend’i **yeniden başlat**. Açılışta konsolda `E-posta: SMTP etkin` görünmeli; aksi halde `.env` yolu veya değişkenler eksiktir.
-4. Hâlâ gitmiyorsa `SMTP_DEBUG=1` ekle, backend konsolundaki SMTP hata koduna bak. Geliştirmede kod ve doğrulama linki yine de konsola yazılır.
-5. Konsolda **self-signed certificate** / TLS zinciri hatası görürsen (antivirüs veya kurumsal ağ sık neden): yalnızca yerel deneme için `perfiai/.env` içine `SMTP_TLS_REJECT_UNAUTHORIZED=0` ekle, backend’i yeniden başlat. **Üretimde kullanma.**
-6. Uygulamada *«Hesap oluşturuldu ancak doğrulama e-postası gönderilemedi»* görürsen: SMTP bilgileri eksik/yanlış veya gönderim hata veriyor demektir; modaldeki **doğrulama bağlantısını** (geliştirme) veya konsoldaki URL’yi kullan; düzeltince **Tekrar gönder** dene.
+1. Create `.env` from `.env.example` at project root (`perfiai/.env`)
+2. Fill `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` (for Gmail: use an **App Password**, not your normal password)
+3. Restart backend; startup log should show `E-posta: SMTP etkin`
+4. If emails still fail, set `SMTP_DEBUG=1` and inspect SMTP error logs
+5. If you see **self-signed certificate** / TLS chain errors (often antivirus or corporate proxy), for local testing only set `SMTP_TLS_REJECT_UNAUTHORIZED=0` and restart backend (**do not use this in production**)
+6. If UI shows *"Account created but verification email could not be sent"*, use the dev verification link shown in the modal/server logs and retry after SMTP is fixed
 
-**SMTP teşhis:** `backend` klasöründe `npm run smtp-check` — bağlantıyı doğrular ve kendine test postası atar (isteğe bağlı alıcı: `npm run smtp-check -- diger@email.com`).
+**SMTP diagnostics:** from `backend`, run:
 
-**Süreler:** Giriş kodu ve kayıt doğrulama bağlantısı üretimde **3 dakika** geçerlidir. Bağlantı süresi dolarsa kayıt ekranından yeni doğrulama e-postası isteyin (`api.test` sunucusu `TEST_EMAIL_VERIFICATION_TOKEN_TTL_MS` ile daha kısa TTL kullanabilir).
+```bash
+npm run smtp-check
+# optional target address:
+npm run smtp-check -- someone@example.com
+```
 
-**Örnek istek:**
+**TTLs:** login code and verification link are both **3 minutes** in production.  
+For tests, `api.test` can use `TEST_EMAIL_VERIFICATION_TOKEN_TTL_MS` to shorten TTL.
+
+**Example request:**
 
 ```bash
 curl -X POST http://localhost:3001/ai-search \
   -H "Content-Type: application/json" \
-  -d '{"query":"yaz için ferah narenciye kokusu, ofiste kullanırım","gender":"male","season":"summer","limit":5}'
+  -d '{"query":"fresh citrus scent for summer office use","gender":"male","season":"summer","limit":5}'
 ```
 
 ---
 
 ## 🔥 Backend API
 
-| Method | Endpoint | Açıklama |
-|--------|----------|----------|
-| GET | `/` | API bilgisi |
-| GET | `/perfumes` | Liste: `q`, `gender`, `season`, `page`, `limit`, `sort`, `order` |
-| GET | `/perfumes/:id` | Tek parfüm detayı |
-| GET | `/stats` | Toplam ve gender dağılımı |
-| POST | `/ai-search` | Doğal dil arama. Body: `query`, `gender?`, `season?`, `limit?` |
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | API info |
+| GET | `/perfumes` | List with `q`, `gender`, `season`, `page`, `limit`, `sort`, `order` |
+| GET | `/perfumes/:id` | Perfume detail |
+| GET | `/stats` | Total count and gender distribution |
+| POST | `/ai-search` | Natural language search. Body: `query`, `gender?`, `season?`, `limit?` |
 
-**Cevap (örnek):** `total`, `query`, `lang`, `mode` (`"heuristic"` | `"embedding"`), `data[]` içinde her parfüm için `score`, `similarityScore`, `popularityScore`, `tags`, `reason`.
+**Response shape (example):** `total`, `query`, `lang`, `mode` (`"heuristic"` | `"embedding"`), and `data[]` with `score`, `similarityScore`, `popularityScore`, `tags`, `reason`.
 
 ---
 
-## 🧠 Embedding arama (SentenceTransformers, ücretsiz)
+## 🧠 Embedding Search (SentenceTransformers, free)
 
-Query ve parfüm metinlerini vektöre çevirip cosine similarity ile sıralamak için:
+To rank perfumes by cosine similarity over vector embeddings:
 
-### 1. Parfüm embedding’lerini üret (bir kere)
+### 1) Generate perfume embeddings (one-time)
 
 ```bash
 cd /path/to/perfiai
@@ -178,9 +190,9 @@ pip install -r scripts/requirements-embeddings.txt
 python3 scripts/generate_sentence_embeddings.py
 ```
 
-Çıktı: `data/perfume_embeddings_st.json` (`perfumes.json` ile aynı kayıt sırası ve uzunlukta vektör listesi; metne `short_description_tr` da dahildir).
+Output: `data/perfume_embeddings_st.json` (same ordering/length as `perfumes.json`, includes `short_description_tr` in text pipeline).
 
-### 2. Embedding API’yi çalıştır (sorgu → vektör)
+### 2) Run embedding API (query -> vector)
 
 ```bash
 source .venv/bin/activate
@@ -188,9 +200,7 @@ pip install fastapi uvicorn sentence-transformers
 uvicorn scripts.embedding_server:app --reload --port 8001
 ```
 
-### 3. Backend’i embedding modunda başlat
-
-Yeni terminalde:
+### 3) Start backend in embedding mode
 
 ```bash
 export USE_ST_EMBEDDING=1
@@ -199,12 +209,12 @@ cd backend
 npm start
 ```
 
-Bu ayarlarla `POST /ai-search` cevabında `mode: "embedding"` gelir.  
-Embedding servisi yoksa veya `USE_ST_EMBEDDING` set değilse backend otomatik **heuristic** moda döner.
+With this setup, `POST /ai-search` returns `mode: "embedding"`.  
+If embedding service is unavailable or env is missing, backend falls back to **heuristic** mode automatically.
 
 ---
 
-## 📋 Veri şeması (parfüm)
+## 📋 Perfume Data Schema
 
 ```json
 {
@@ -226,55 +236,55 @@ Embedding servisi yoksa veya `USE_ST_EMBEDDING` set değilse backend otomatik **
 
 ---
 
-## ⚙️ Ortam Değişkenleri
+## ⚙️ Environment Variables
 
-`.env.example` dosyasını `.env` olarak kopyalayıp değerleri doldurun:
+Copy `.env.example` to `.env` and fill required values:
 
 ```bash
 cp .env.example .env
 ```
 
-Detaylar için `.env.example` içindeki yorumlara bakın.
+See inline comments in `.env.example` for details.
 
 ---
 
-## 🧪 Testler
+## 🧪 Tests
 
 ```bash
 cd backend
 npm test
 ```
 
-Sunucu otomatik başlatılır, 5 endpoint test edilir ve kapatılır.
+The test runner starts/stops the server automatically and checks core endpoints.
 
 ---
 
 ## 🚢 Deploy
 
-| Platform | Dosya | Not |
-|----------|-------|-----|
-| **Render** | `render.yaml` | Repo bağla, otomatik algılanır |
-| **Railway** | `railway.toml` | `railway up` ile deploy |
+| Platform | File | Notes |
+|----------|------|-------|
+| **Render** | `render.yaml` | Connect repo, auto-detected |
+| **Railway** | `railway.toml` | Deploy via `railway up` |
 | **Docker** | `Dockerfile` | `docker build -t perfiai . && docker run -p 3001:3001 perfiai` |
 
-Embedding servisi (SentenceTransformers) ayrı host gerektirir; Vercel'de çalışmaz.
+SentenceTransformers embedding service should run separately; it does not run on Vercel serverless.
 
 ---
 
-## 📅 Durum
+## 📅 Status
 
-| Özellik | Durum |
+| Feature | Status |
 |--------|--------|
-| Veri (880+ parfüm) | ✅ |
-| Backend API (liste, detay, stats) | ✅ |
-| AI arama (heuristic) | ✅ |
-| AI arama (embedding, ST) | ✅ (lokal Python servisi ile) |
-| TR/EN dil, tags, reason | ✅ |
-| .env.example, deploy config, testler | ✅ |
-| Frontend | Planlı |
+| Data catalog (3592 perfumes) | ✅ |
+| Backend API (list/detail/stats) | ✅ |
+| AI search (heuristic) | ✅ |
+| AI search (embedding via ST) | ✅ |
+| TR/EN language, tags, explanations | ✅ |
+| Env template, deploy configs, tests | ✅ |
+| Frontend | ✅ |
 
 ---
 
-## 📄 Lisans
+## 📄 License
 
 MIT
